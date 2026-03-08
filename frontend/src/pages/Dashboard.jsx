@@ -8,7 +8,6 @@ import ResourcePanel from '../components/ResourcePanel';
 import LoadingState from '../components/LoadingState';
 import TubesBackground from '../components/TubesBackground';
 import LearningPathMap from '../components/LearningPathMap';
-import LearningPathMap from '../components/LearningPathMap';
 import { cn } from '../lib/utils';
 import { auth } from '../firebase';
 // Assuming cn utility is available here
@@ -402,7 +401,7 @@ const Dashboard = () => {
                     <div className="px-8 pb-4">
                         <div className="flex items-center gap-3 opacity-30">
                             {(() => {
-                                const active = TABS.find(t => t.id === activeTab);
+                                const active = TABS.find(t => t.id === activeTab) || TABS[0];
                                 return (
                                     <>
                                         <div className={cn("w-2 h-2 rounded-full", active.accent)} />
