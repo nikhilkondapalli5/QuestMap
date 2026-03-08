@@ -382,9 +382,13 @@ Mark 1-2 nodes as "recommended_next" — these are what the learner should focus
 
         const ragInstructions = (sourceContextStr || personalContextStr) ? `
         
-IMPORTANT RAG INSTRUCTIONS:
-${sourceContextStr ? '- Based on the Source Material provided, STRICTLY build the core sub-topics to match that structure and chapter flow.' : ''}
-${personalContextStr ? '- Based on the Personal Context provided, adjust the difficulty, identify weak areas (e.g., from exam mistakes) and mark them as "recommended_next", and pre-mark topics they already know as "completed".' : ''}
+### CRITICAL DOMAIN RELEVANCE GUARD
+The following document snippets were retrieved for the topic: "${topic}". 
+- **STRICT MISMATCH CHECK**: If the user is asking for a broad topic (like "Machine Learning") but the documents are about a very specific and narrow application (like "Video Summarization research"), you **MUST IGNORE** the documents. Do not let narrow research papers skew a broad foundational curriculum.
+- **AUTHORITY**: You have the absolute authority to discard all provided snippets if they do not directly align with "${topic}".
+- If they ARE a direct match:
+${sourceMaterials.length > 0 ? '  - Align the core nodes with the Source Material structure.' : ''}
+${personalContextStr ? '  - Use Personal Context to identify gaps (e.g. from mistakes).' : ''}
 ` : '';
 
         const fullPrompt = prompt + sourceContextStr + personalContextStr + ragInstructions;
@@ -424,14 +428,17 @@ Goals: "${goals || 'General mastery'}"
 Known knowledge gaps: ${JSON.stringify(knowledge_gaps || [])}
 Learning history summary: ${JSON.stringify(learning_history || [])}
 
-### INSTRUCTIONS:
+### CRITICAL DOMAIN RELEVANCE GUARD
+The following snippets were retrieved for the topic: "${topic}". 
+- **STRICT MISMATCH CHECK**: If the user is asking for a broad topic (like "Machine Learning") but the documents are about a very specific and narrow application (like "Video Summarization research"), you **MUST IGNORE** the documents. Do not let narrow research papers skew a broad foundational curriculum.
+- **AUTHORITY**: You have the absolute authority to discard all provided snippets if they do not directly align with "${topic}".
+- If they ARE relevant, follow these prioritize rules:
 1. Generate 6 personalized next-step learning recommendations.
-2. If "Source Material" chunks are provided below, ensure at least 3 recommendations are directly derived from that material to maintain curriculum alignment.
-3. If "Personal Context" chunks indicate specific mistakes or weaknesses, prioritize those as "High" priority.
+2. If "Source Material" chunks are relevant, ensure at least 3 recommendations are directly derived from that material.
+3. If "Personal Context" chunks are relevant and indicate specific mistakes/weaknesses, prioritize those as "High".
 4. For EACH recommendation:
-   - First REASON about why this is appropriate.
-   - Then provide the recommendation.
-   - Explicitly tie the reason to their profile or the uploaded documents (e.g., "Based on your uploaded textbook Chapter 4...").
+   - Provide the recommendation and REASON about why it matches their profile.
+   - Only tie the reason to documents (e.g., "From your uploaded textbook...") if the documents are actually relevant.
 
 Return valid JSON matching this exact schema:
 {
@@ -530,10 +537,14 @@ Key concepts to test: ${JSON.stringify(key_concepts || [])}
 
 Generate practice scenarios to test and reinforce their understanding. 
 
-CRITICAL GUARDRAIL:
-- You MUST only test concepts and use terminology found in the ABOVE REFERENCE MATERIAL or directly intrinsic to "${node_label}". 
-- Do NOT introduce outside framework names or advanced jargon that is NOT in the reference material.
-- If the reference material is empty, use standard educational best practices for "${node_label}".
+### CRITICAL DOMAIN RELEVANCE GUARD
+The following snippets were retrieved for the topic: "${topic}" and sub-topic: "${node_label}". 
+- **STRICT MISMATCH CHECK**: If the snippets are about a very specific application (like "Video Summarization") while the user is learning a broad topic (like "Machine Learning"), you **MUST IGNORE** them.
+- **AUTHORITY**: Only use this material if it is a DIRECT and NECESSARY match for "${node_label}". Otherwise, use standard educational best practices for "${node_label}".
+- If they ARE relevant, follow these CRITICAL rules:
+  - You MUST only test concepts and use terminology found in the ABOVE REFERENCE MATERIAL or directly intrinsic to "${node_label}". 
+  - Do NOT introduce outside framework names or advanced jargon that is NOT in the reference material.
+  - Design questions that test understanding of THIS material, not general trivia.
 
 Think step-by-step:
 1. What are the most important concepts mentioned in the provided document chunks?
@@ -674,7 +685,12 @@ ${referenceContext}
 The learner is studying "${topic}", specifically the sub-topic: "${node_label}"
 Skill level: "${skill_level || 'beginner'}"
 
-Recommend external learning resources.
+### CRITICAL DOMAIN RELEVANCE GUARD
+The following snippets were retrieved for the topic: "${topic}" and sub-topic: "${node_label}". 
+- **STRICT MISMATCH CHECK**: If the snippets are about a very specific application (like "Video Summarization") while the user is learning a broad topic (like "Machine Learning"), you **MUST IGNORE** them.
+- **AUTHORITY**: Only use this material if it is a DIRECT and NECESSARY match for "${node_label}". Otherwise, provide standard high-quality resources for "${topic}".
+- If they ARE relevant:
+  - Curate highly specific resources that complement the user's provided material.
 
 CRITICAL RULES FOR YOUTUBE:
 - Do NOT provide direct YouTube video URLs — they are often wrong.

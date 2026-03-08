@@ -1,349 +1,144 @@
-[dotenv@17.3.1] injecting env (4) from .env -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
+[dotenv@17.3.1] injecting env (4) from .env -- tip: ⚙️  enable debug logging with { debug: true }
 QuestMap API running on port 5001
 Pinecone index "questmap" ready.
 RAG system initialized.
 Connected to MongoDB Atlas
-[2026-03-08T14:10:43.161Z] Profile generation for: "NLP"
-[2026-03-08T14:10:53.607Z] Profile generated successfully.
-[2026-03-08T14:10:53.613Z] Map generation for: "NLP"
-[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "NLP"
-[RAG DEBUG] Raw matches found: 15
-  - Match 0: Score: 0.6085, File: LLMVS+Appendix.pdf
-  - Match 1: Score: 0.6071, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-  - Match 2: Score: 0.6034, File: A Survey of Video Datasets for Grounded Event Understanding.pdf
-  - Match 3: Score: 0.6032, File: LLMVS+Appendix.pdf
-  - Match 4: Score: 0.6031, File: LLMVS+Appendix.pdf
-  - Match 5: Score: 0.6017, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-  - Match 6: Score: 0.6004, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-  - Match 7: Score: 0.5988, File: LLMVS+Appendix.pdf
-  - Match 8: Score: 0.5975, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-  - Match 9: Score: 0.5944, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-  - Match 10: Score: 0.5944, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-  - Match 11: Score: 0.5942, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-  - Match 12: Score: 0.5939, File: LLMVS+Appendix.pdf
-  - Match 13: Score: 0.5928, File: LLMVS+Appendix.pdf
-  - Match 14: Score: 0.5928, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-[2026-03-08T14:10:54.172Z] Map RAG injected (15 source chunks, 0 context chunks).
-[2026-03-08T14:11:17.540Z] Map generated with 9 nodes.
-[2026-03-08T14:11:17.546Z] Recommendations for: "NLP"
-[2026-03-08T14:11:18.240Z] RAG context injected (3 sessions, 3 doc chunks).
-[2026-03-08T14:11:35.093Z] Generated 6 recommendations.
-Stored session context: session_FroW05HMsWVAU5BAl1XtQt7RLwc2_1772979095276
-[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "NLP Event Understanding with LLMs in Video"
-[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "NLP Event Understanding with LLMs in Video"
-[RAG DEBUG] Raw matches found: 5
-  - Match 0: Score: 0.7841, File: LLMVS+Appendix.pdf
-  - Match 1: Score: 0.7841, File: LLMVS+Appendix.pdf
-  - Match 2: Score: 0.7840, File: A Survey of Video Datasets for Grounded Event Understanding.pdf
-  - Match 3: Score: 0.7815, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-  - Match 4: Score: 0.7770, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-[2026-03-08T14:12:50.753Z] Resources for: "Event Understanding with LLMs in Video"
-[RAG DEBUG] Raw matches found: 5
-  - Match 0: Score: 0.7841, File: LLMVS+Appendix.pdf
-  - Match 1: Score: 0.7841, File: LLMVS+Appendix.pdf
-  - Match 2: Score: 0.7840, File: A Survey of Video Datasets for Grounded Event Understanding.pdf
-  - Match 3: Score: 0.7815, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-  - Match 4: Score: 0.7770, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-[2026-03-08T14:12:50.788Z] Practice for: "Event Understanding with LLMs in Video"
-[2026-03-08T14:13:12.280Z] Generated resources: 4 videos, 3 articles.
-[2026-03-08T14:13:12.281Z] Resolving resource URLs...
-[2026-03-08T14:13:13.809Z] All resource URLs resolved.
-[2026-03-08T14:13:19.116Z] Generated 5 practice scenarios.
-[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "NLP LLMs for Video Understanding Tasks"
-[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "NLP LLMs for Video Understanding Tasks"
-[RAG DEBUG] Raw matches found: 5
-  - Match 0: Score: 0.8160, File: LLMVS+Appendix.pdf
-  - Match 1: Score: 0.8107, File: LLMVS+Appendix.pdf
-  - Match 2: Score: 0.8083, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-  - Match 3: Score: 0.8005, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-  - Match 4: Score: 0.7989, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-[2026-03-08T14:14:23.126Z] Practice for: "LLMs for Video Understanding Tasks"
-[RAG DEBUG] Raw matches found: 5
-  - Match 0: Score: 0.8160, File: LLMVS+Appendix.pdf
-  - Match 1: Score: 0.8107, File: LLMVS+Appendix.pdf
-  - Match 2: Score: 0.8083, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-  - Match 3: Score: 0.8005, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-  - Match 4: Score: 0.7989, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-[2026-03-08T14:14:23.160Z] Resources for: "LLMs for Video Understanding Tasks"
-[2026-03-08T14:14:40.832Z] Generated 5 practice scenarios.
-[2026-03-08T14:14:48.314Z] Generated resources: 4 videos, 3 articles.
-[2026-03-08T14:14:48.314Z] Resolving resource URLs...
-[2026-03-08T14:14:49.924Z] All resource URLs resolved.
-[2026-03-08T14:20:19.481Z] Profile generation for: "NLP"
-[2026-03-08T14:21:26.613Z] Profile generated successfully.
-[2026-03-08T14:21:26.628Z] Map generation for: "NLP"
-[RAG DEBUG] Querying Pinecone for User: anonymous, Topic: "NLP"
+[2026-03-08T16:02:51.311Z] Generating Level Quiz for: "Machine Learning" 
+[2026-03-08T16:03:00.435Z] Generated 5 quiz levels.
+[2026-03-08T16:04:13.042Z] Profile generation for: "car"
+[2026-03-08T16:04:22.702Z] Profile generated successfully.
+[2026-03-08T16:04:22.707Z] Map generation for: "car"
+[RAG DEBUG] Querying Pinecone for User: anonymous, Topic: "car"
 [RAG DEBUG] Raw matches found: 0
-[2026-03-08T14:21:27.116Z] Map RAG injected (0 source chunks, 0 context chunks).
-[2026-03-08T14:21:55.165Z] Map generated with 9 nodes.
-[2026-03-08T14:21:55.168Z] Recommendations for: "NLP"
-[2026-03-08T14:21:55.841Z] RAG context injected (3 sessions, 0 doc chunks).
-Gemini attempt 1 failed, retrying...
-Gemini attempt 2 failed, retrying...
-[2026-03-08T14:29:08.759Z] Recommendations Error: [GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: fetch failed
-[2026-03-08T14:43:11.057Z] Profile generation for: "I want to learn pickleball"
-[2026-03-08T14:43:25.498Z] Profile generated successfully.
-[2026-03-08T14:43:25.500Z] Map generation for: "I want to learn pickleball"
-[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "I want to learn pickleball"
+[2026-03-08T16:04:23.299Z] Map RAG injected (0 source chunks, 0 context chunks).
+[2026-03-08T16:04:52.501Z] Map generated with 10 nodes.
+[2026-03-08T16:04:52.508Z] Recommendations for: "car"
+[2026-03-08T16:04:53.191Z] RAG context injected (3 sessions, 0 doc chunks).
+[2026-03-08T16:05:08.986Z] Generated 6 recommendations.
+Stored session context: session_anonymous_1772985909156
+[2026-03-08T16:05:36.891Z] Generating Level Quiz for: "car" 
+[2026-03-08T16:05:36.897Z] Generating Level Quiz for: "car" 
+[2026-03-08T16:05:43.622Z] Generated 5 quiz levels.
+[2026-03-08T16:05:43.735Z] Generated 5 quiz levels.
+[2026-03-08T16:09:28.491Z] Profile generation for: "Deep learning"
+[2026-03-08T16:09:39.120Z] Profile generated successfully.
+[2026-03-08T16:09:39.123Z] Map generation for: "Deep learning"
+[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "Deep learning"
 [RAG DEBUG] Raw matches found: 15
-  - Match 0: Score: 0.5251, File: LLMVS+Appendix.pdf
-  - Match 1: Score: 0.5230, File: LLMVS+Appendix.pdf
-  - Match 2: Score: 0.5188, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-  - Match 3: Score: 0.5142, File: LLMVS+Appendix.pdf
-  - Match 4: Score: 0.5136, File: LLMVS+Appendix.pdf
-  - Match 5: Score: 0.5117, File: LLMVS+Appendix.pdf
-  - Match 6: Score: 0.5114, File: A Survey of Video Datasets for Grounded Event Understanding.pdf
-  - Match 7: Score: 0.5106, File: LLMVS+Appendix.pdf
-  - Match 8: Score: 0.5105, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-  - Match 9: Score: 0.5095, File: LLMVS+Appendix.pdf
-  - Match 10: Score: 0.5082, File: A Survey of Video Datasets for Grounded Event Understanding.pdf
-  - Match 11: Score: 0.5075, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-  - Match 12: Score: 0.5074, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-  - Match 13: Score: 0.5068, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-  - Match 14: Score: 0.5035, File: LLMVS+Appendix.pdf
-[2026-03-08T14:43:26.279Z] Map RAG injected (15 source chunks, 0 context chunks).
-[2026-03-08T14:44:01.008Z] Map generated with 10 nodes.
-[2026-03-08T14:44:01.015Z] Recommendations for: "I want to learn pickleball"
-[2026-03-08T14:44:01.690Z] RAG context injected (3 sessions, 3 doc chunks).
-[2026-03-08T14:44:17.931Z] Generated 6 recommendations.
-Stored session context: session_FroW05HMsWVAU5BAl1XtQt7RLwc2_1772981058090
-[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "I want to learn pickleball The Dink Shot & Non-Volley Zone (Kitchen) Play"
-[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "I want to learn pickleball The Dink Shot & Non-Volley Zone (Kitchen) Play"
+  - Match 0: Score: 0.6029, File: LLMVS+Appendix.pdf
+  - Match 1: Score: 0.6017, File: A Survey of Video Datasets for Grounded Event Understanding.pdf
+  - Match 2: Score: 0.6016, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
+  - Match 3: Score: 0.6015, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
+  - Match 4: Score: 0.5985, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
+  - Match 5: Score: 0.5975, File: LLMVS+Appendix.pdf
+  - Match 6: Score: 0.5943, File: LLMVS+Appendix.pdf
+  - Match 7: Score: 0.5932, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
+  - Match 8: Score: 0.5913, File: A Survey of Video Datasets for Grounded Event Understanding.pdf
+  - Match 9: Score: 0.5894, File: LLMVS+Appendix.pdf
+  - Match 10: Score: 0.5892, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
+  - Match 11: Score: 0.5883, File: LLMVS+Appendix.pdf
+  - Match 12: Score: 0.5880, File: LLMVS+Appendix.pdf
+  - Match 13: Score: 0.5876, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
+  - Match 14: Score: 0.5875, File: A Survey of Video Datasets for Grounded Event Understanding.pdf
+[2026-03-08T16:09:39.691Z] Map RAG injected (0 source chunks, 0 context chunks).
+[2026-03-08T16:10:12.190Z] Map generated with 9 nodes.
+[2026-03-08T16:10:12.196Z] Recommendations for: "Deep learning"
+[2026-03-08T16:10:12.871Z] RAG context injected (3 sessions, 3 doc chunks).
+[2026-03-08T16:10:30.011Z] Generated 6 recommendations.
+Stored session context: session_FroW05HMsWVAU5BAl1XtQt7RLwc2_1772986230170
+[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "Deep learning Self-Supervised & Contrastive Learning"
+[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "Deep learning Self-Supervised & Contrastive Learning"
 [RAG DEBUG] Raw matches found: 5
-  - Match 0: Score: 0.5210, File: LLMVS+Appendix.pdf
-  - Match 1: Score: 0.5141, File: LLMVS+Appendix.pdf
-  - Match 2: Score: 0.5094, File: LLMVS+Appendix.pdf
-  - Match 3: Score: 0.5040, File: LLMVS+Appendix.pdf
-  - Match 4: Score: 0.5006, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-[2026-03-08T14:44:26.802Z] Practice for: "The Dink Shot & Non-Volley Zone (Kitchen) Play"
+  - Match 0: Score: 0.6532, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
+  - Match 1: Score: 0.6266, File: LLMVS+Appendix.pdf
+  - Match 2: Score: 0.6221, File: LLMVS+Appendix.pdf
+  - Match 3: Score: 0.6190, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
+  - Match 4: Score: 0.6189, File: A Survey of Video Datasets for Grounded Event Understanding.pdf
+[2026-03-08T16:11:25.910Z] Resources for: "Self-Supervised & Contrastive Learning"
 [RAG DEBUG] Raw matches found: 5
-  - Match 0: Score: 0.5210, File: LLMVS+Appendix.pdf
-  - Match 1: Score: 0.5141, File: LLMVS+Appendix.pdf
-  - Match 2: Score: 0.5094, File: LLMVS+Appendix.pdf
-  - Match 3: Score: 0.5040, File: LLMVS+Appendix.pdf
-  - Match 4: Score: 0.5006, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-[2026-03-08T14:44:26.805Z] Resources for: "The Dink Shot & Non-Volley Zone (Kitchen) Play"
-[2026-03-08T14:44:39.446Z] Generated 5 practice scenarios.
-[2026-03-08T14:44:39.956Z] Generated resources: 4 videos, 3 articles.
-[2026-03-08T14:44:39.956Z] Resolving resource URLs...
-[2026-03-08T14:44:41.656Z] All resource URLs resolved.
-[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "I want to learn pickleball Introduction to Pickleball: Rules, Scoring & Court Layout"
-[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "I want to learn pickleball Introduction to Pickleball: Rules, Scoring & Court Layout"
+  - Match 0: Score: 0.6532, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
+  - Match 1: Score: 0.6266, File: LLMVS+Appendix.pdf
+  - Match 2: Score: 0.6221, File: LLMVS+Appendix.pdf
+  - Match 3: Score: 0.6190, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
+  - Match 4: Score: 0.6189, File: A Survey of Video Datasets for Grounded Event Understanding.pdf
+[2026-03-08T16:11:25.913Z] Practice for: "Self-Supervised & Contrastive Learning"
+[2026-03-08T16:11:43.945Z] Generated resources: 4 videos, 3 articles.
+[2026-03-08T16:11:43.946Z] Resolving resource URLs...
+[2026-03-08T16:11:45.767Z] All resource URLs resolved.
+[2026-03-08T16:12:00.123Z] Generated 5 practice scenarios.
+[2026-03-08T16:12:47.860Z] Generating Level Quiz for: "Deep learning" 
+[2026-03-08T16:12:47.863Z] Generating Level Quiz for: "Deep learning" 
+[2026-03-08T16:12:57.679Z] Generated 5 quiz levels.
+[2026-03-08T16:12:58.288Z] Generated 5 quiz levels.
+[2026-03-08T16:14:25.198Z] Profile generation for: "Deep learning"
+[2026-03-08T16:14:34.749Z] Profile generated successfully.
+[2026-03-08T16:14:34.753Z] Map generation for: "Deep learning"
+[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "Deep learning"
+[RAG DEBUG] Raw matches found: 15
+  - Match 0: Score: 0.6029, File: LLMVS+Appendix.pdf
+  - Match 1: Score: 0.6017, File: A Survey of Video Datasets for Grounded Event Understanding.pdf
+  - Match 2: Score: 0.6016, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
+  - Match 3: Score: 0.6015, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
+  - Match 4: Score: 0.5985, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
+  - Match 5: Score: 0.5975, File: LLMVS+Appendix.pdf
+  - Match 6: Score: 0.5943, File: LLMVS+Appendix.pdf
+  - Match 7: Score: 0.5932, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
+  - Match 8: Score: 0.5913, File: A Survey of Video Datasets for Grounded Event Understanding.pdf
+  - Match 9: Score: 0.5894, File: LLMVS+Appendix.pdf
+  - Match 10: Score: 0.5892, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
+  - Match 11: Score: 0.5883, File: LLMVS+Appendix.pdf
+  - Match 12: Score: 0.5880, File: LLMVS+Appendix.pdf
+  - Match 13: Score: 0.5876, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
+  - Match 14: Score: 0.5875, File: A Survey of Video Datasets for Grounded Event Understanding.pdf
+[2026-03-08T16:14:35.379Z] Map RAG injected (0 source chunks, 0 context chunks).
+[2026-03-08T16:15:05.710Z] Map generated with 10 nodes.
+[2026-03-08T16:17:50.698Z] Profile generation for: "Poetry"
+[2026-03-08T16:18:01.239Z] Profile generated successfully.
+[2026-03-08T16:18:01.249Z] Map generation for: "Poetry"
+[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "Poetry"
+[RAG DEBUG] Raw matches found: 15
+  - Match 0: Score: 0.5400, File: LLMVS+Appendix.pdf
+  - Match 1: Score: 0.5263, File: LLMVS+Appendix.pdf
+  - Match 2: Score: 0.5171, File: LLMVS+Appendix.pdf
+  - Match 3: Score: 0.5132, File: LLMVS+Appendix.pdf
+  - Match 4: Score: 0.5099, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
+  - Match 5: Score: 0.5086, File: LLMVS+Appendix.pdf
+  - Match 6: Score: 0.5078, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
+  - Match 7: Score: 0.5067, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
+  - Match 8: Score: 0.5059, File: LLMVS+Appendix.pdf
+  - Match 9: Score: 0.5055, File: LLMVS+Appendix.pdf
+  - Match 10: Score: 0.5044, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
+  - Match 11: Score: 0.5015, File: LLMVS+Appendix.pdf
+  - Match 12: Score: 0.5013, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
+  - Match 13: Score: 0.5007, File: LLMVS+Appendix.pdf
+  - Match 14: Score: 0.5006, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
+[2026-03-08T16:18:01.848Z] Map RAG injected (0 source chunks, 0 context chunks).
+[2026-03-08T16:18:26.787Z] Map generated with 9 nodes.
+[2026-03-08T16:18:26.794Z] Recommendations for: "Poetry"
+[2026-03-08T16:18:27.470Z] RAG context injected (3 sessions, 3 doc chunks).
+[2026-03-08T16:18:40.409Z] Generated 6 recommendations.
+Stored session context: session_FroW05HMsWVAU5BAl1XtQt7RLwc2_1772986720573
+[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "Poetry Mastering Poetic Imagery & Sensory Language"
+[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "Poetry Mastering Poetic Imagery & Sensory Language"
 [RAG DEBUG] Raw matches found: 5
-  - Match 0: Score: 0.5501, File: LLMVS+Appendix.pdf
-  - Match 1: Score: 0.5426, File: LLMVS+Appendix.pdf
-  - Match 2: Score: 0.5290, File: LLMVS+Appendix.pdf
-  - Match 3: Score: 0.5234, File: LLMVS+Appendix.pdf
-  - Match 4: Score: 0.5228, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-[2026-03-08T14:47:56.120Z] Resources for: "Introduction to Pickleball: Rules, Scoring & Court Layout"
+  - Match 0: Score: 0.5564, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
+  - Match 1: Score: 0.5538, File: LLMVS+Appendix.pdf
+  - Match 2: Score: 0.5442, File: LLMVS+Appendix.pdf
+  - Match 3: Score: 0.5442, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
+  - Match 4: Score: 0.5439, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
+[2026-03-08T16:19:19.162Z] Practice for: "Mastering Poetic Imagery & Sensory Language"
 [RAG DEBUG] Raw matches found: 5
-  - Match 0: Score: 0.5501, File: LLMVS+Appendix.pdf
-  - Match 1: Score: 0.5426, File: LLMVS+Appendix.pdf
-  - Match 2: Score: 0.5290, File: LLMVS+Appendix.pdf
-  - Match 3: Score: 0.5234, File: LLMVS+Appendix.pdf
-  - Match 4: Score: 0.5228, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-[2026-03-08T14:47:56.133Z] Practice for: "Introduction to Pickleball: Rules, Scoring & Court Layout"
-[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "I want to learn pickleball Equipment & Basic Grip Techniques"
-[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "I want to learn pickleball Equipment & Basic Grip Techniques"
-[RAG DEBUG] Raw matches found: 5
-  - Match 0: Score: 0.5209, File: LLMVS+Appendix.pdf
-  - Match 1: Score: 0.5145, File: LLMVS+Appendix.pdf
-  - Match 2: Score: 0.4928, File: A Survey of Video Datasets for Grounded Event Understanding.pdf
-  - Match 3: Score: 0.4919, File: LLMVS+Appendix.pdf
-  - Match 4: Score: 0.4896, File: LLMVS+Appendix.pdf
-[2026-03-08T14:48:00.813Z] Practice for: "Equipment & Basic Grip Techniques"
-[RAG DEBUG] Raw matches found: 5
-  - Match 0: Score: 0.5209, File: LLMVS+Appendix.pdf
-  - Match 1: Score: 0.5145, File: LLMVS+Appendix.pdf
-  - Match 2: Score: 0.4928, File: A Survey of Video Datasets for Grounded Event Understanding.pdf
-  - Match 3: Score: 0.4919, File: LLMVS+Appendix.pdf
-  - Match 4: Score: 0.4896, File: LLMVS+Appendix.pdf
-[2026-03-08T14:48:00.839Z] Resources for: "Equipment & Basic Grip Techniques"
-[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "I want to learn pickleball Fundamental Strokes: Serve, Return of Serve & Groundstroke Basics"
-[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "I want to learn pickleball Fundamental Strokes: Serve, Return of Serve & Groundstroke Basics"
-[RAG DEBUG] Raw matches found: 5
-  - Match 0: Score: 0.5157, File: LLMVS+Appendix.pdf
-  - Match 1: Score: 0.5144, File: LLMVS+Appendix.pdf
-  - Match 2: Score: 0.4941, File: LLMVS+Appendix.pdf
-  - Match 3: Score: 0.4934, File: A Survey of Video Datasets for Grounded Event Understanding.pdf
-  - Match 4: Score: 0.4912, File: LLMVS+Appendix.pdf
-[2026-03-08T14:48:04.546Z] Practice for: "Fundamental Strokes: Serve, Return of Serve & Groundstroke Basics"
-[RAG DEBUG] Raw matches found: 5
-  - Match 0: Score: 0.5157, File: LLMVS+Appendix.pdf
-  - Match 1: Score: 0.5144, File: LLMVS+Appendix.pdf
-  - Match 2: Score: 0.4941, File: LLMVS+Appendix.pdf
-  - Match 3: Score: 0.4934, File: A Survey of Video Datasets for Grounded Event Understanding.pdf
-  - Match 4: Score: 0.4912, File: LLMVS+Appendix.pdf
-[2026-03-08T14:48:04.565Z] Resources for: "Fundamental Strokes: Serve, Return of Serve & Groundstroke Basics"
-[2026-03-08T14:48:09.430Z] Generated 5 practice scenarios.
-[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "I want to learn pickleball Volleys & Overheads"
-[RAG DEBUG] Raw matches found: 5
-  - Match 0: Score: 0.5167, File: LLMVS+Appendix.pdf
-  - Match 1: Score: 0.5146, File: LLMVS+Appendix.pdf
-  - Match 2: Score: 0.5105, File: LLMVS+Appendix.pdf
-  - Match 3: Score: 0.5089, File: LLMVS+Appendix.pdf
-  - Match 4: Score: 0.5079, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-[2026-03-08T14:48:09.824Z] Practice for: "Volleys & Overheads"
-[2026-03-08T14:48:11.251Z] Generated resources: 4 videos, 3 articles.
-[2026-03-08T14:48:11.251Z] Resolving resource URLs...
-[2026-03-08T14:48:12.850Z] All resource URLs resolved.
-[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "I want to learn pickleball Volleys & Overheads"
-[RAG DEBUG] Raw matches found: 5
-  - Match 0: Score: 0.5167, File: LLMVS+Appendix.pdf
-  - Match 1: Score: 0.5146, File: LLMVS+Appendix.pdf
-  - Match 2: Score: 0.5105, File: LLMVS+Appendix.pdf
-  - Match 3: Score: 0.5089, File: LLMVS+Appendix.pdf
-  - Match 4: Score: 0.5079, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-[2026-03-08T14:48:13.055Z] Resources for: "Volleys & Overheads"
-[2026-03-08T14:48:15.400Z] Generated resources: 4 videos, 3 articles.
-[2026-03-08T14:48:15.400Z] Resolving resource URLs...
-[2026-03-08T14:48:16.733Z] Generated 5 practice scenarios.
-[2026-03-08T14:48:16.888Z] All resource URLs resolved.
-[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "I want to learn pickleball Volleys & Overheads"
-[RAG DEBUG] Raw matches found: 5
-  - Match 0: Score: 0.5167, File: LLMVS+Appendix.pdf
-  - Match 1: Score: 0.5146, File: LLMVS+Appendix.pdf
-  - Match 2: Score: 0.5105, File: LLMVS+Appendix.pdf
-  - Match 3: Score: 0.5089, File: LLMVS+Appendix.pdf
-  - Match 4: Score: 0.5079, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-[2026-03-08T14:48:16.985Z] Practice for: "Volleys & Overheads"
-[2026-03-08T14:48:16.991Z] Generated resources: 4 videos, 3 articles.
-[2026-03-08T14:48:16.991Z] Resolving resource URLs...
-[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "I want to learn pickleball Volleys & Overheads"
-[RAG DEBUG] Raw matches found: 5
-  - Match 0: Score: 0.5167, File: LLMVS+Appendix.pdf
-  - Match 1: Score: 0.5146, File: LLMVS+Appendix.pdf
-  - Match 2: Score: 0.5105, File: LLMVS+Appendix.pdf
-  - Match 3: Score: 0.5089, File: LLMVS+Appendix.pdf
-  - Match 4: Score: 0.5079, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-[2026-03-08T14:48:17.338Z] Resources for: "Volleys & Overheads"
-[2026-03-08T14:48:18.473Z] Generated 5 practice scenarios.
-[2026-03-08T14:48:18.614Z] All resource URLs resolved.
-[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "I want to learn pickleball Volleys & Overheads"
-[RAG DEBUG] Raw matches found: 5
-  - Match 0: Score: 0.5167, File: LLMVS+Appendix.pdf
-  - Match 1: Score: 0.5146, File: LLMVS+Appendix.pdf
-  - Match 2: Score: 0.5105, File: LLMVS+Appendix.pdf
-  - Match 3: Score: 0.5089, File: LLMVS+Appendix.pdf
-  - Match 4: Score: 0.5079, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-[2026-03-08T14:48:18.700Z] Practice for: "Volleys & Overheads"
-[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "I want to learn pickleball Volleys & Overheads"
-[RAG DEBUG] Raw matches found: 5
-  - Match 0: Score: 0.5167, File: LLMVS+Appendix.pdf
-  - Match 1: Score: 0.5146, File: LLMVS+Appendix.pdf
-  - Match 2: Score: 0.5105, File: LLMVS+Appendix.pdf
-  - Match 3: Score: 0.5089, File: LLMVS+Appendix.pdf
-  - Match 4: Score: 0.5079, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-[2026-03-08T14:48:18.813Z] Resources for: "Volleys & Overheads"
-[2026-03-08T14:48:24.924Z] Generated resources: 4 videos, 3 articles.
-[2026-03-08T14:48:24.924Z] Resolving resource URLs...
-[2026-03-08T14:48:26.597Z] All resource URLs resolved.
-[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "I want to learn pickleball Volleys & Overheads"
-[RAG DEBUG] Raw matches found: 5
-  - Match 0: Score: 0.5167, File: LLMVS+Appendix.pdf
-  - Match 1: Score: 0.5146, File: LLMVS+Appendix.pdf
-  - Match 2: Score: 0.5105, File: LLMVS+Appendix.pdf
-  - Match 3: Score: 0.5089, File: LLMVS+Appendix.pdf
-  - Match 4: Score: 0.5079, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-[2026-03-08T14:48:26.998Z] Practice for: "Volleys & Overheads"
-[2026-03-08T14:48:27.164Z] Generated resources: 4 videos, 3 articles.
-[2026-03-08T14:48:27.164Z] Resolving resource URLs...
-[2026-03-08T14:48:27.771Z] Generated 5 practice scenarios.
-[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "I want to learn pickleball Volleys & Overheads"
-[RAG DEBUG] Raw matches found: 5
-  - Match 0: Score: 0.5167, File: LLMVS+Appendix.pdf
-  - Match 1: Score: 0.5146, File: LLMVS+Appendix.pdf
-  - Match 2: Score: 0.5105, File: LLMVS+Appendix.pdf
-  - Match 3: Score: 0.5089, File: LLMVS+Appendix.pdf
-  - Match 4: Score: 0.5079, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-[2026-03-08T14:48:28.004Z] Resources for: "Volleys & Overheads"
-[2026-03-08T14:48:28.509Z] All resource URLs resolved.
-[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "I want to learn pickleball Volleys & Overheads"
-[RAG DEBUG] Raw matches found: 5
-  - Match 0: Score: 0.5167, File: LLMVS+Appendix.pdf
-  - Match 1: Score: 0.5146, File: LLMVS+Appendix.pdf
-  - Match 2: Score: 0.5105, File: LLMVS+Appendix.pdf
-  - Match 3: Score: 0.5089, File: LLMVS+Appendix.pdf
-  - Match 4: Score: 0.5079, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-[2026-03-08T14:48:28.705Z] Practice for: "Volleys & Overheads"
-[2026-03-08T14:48:29.354Z] Generated resources: 4 videos, 3 articles.
-[2026-03-08T14:48:29.354Z] Resolving resource URLs...
-[2026-03-08T14:48:30.660Z] Generated 5 practice scenarios.
-[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "I want to learn pickleball Volleys & Overheads"
-[RAG DEBUG] Raw matches found: 5
-  - Match 0: Score: 0.5167, File: LLMVS+Appendix.pdf
-  - Match 1: Score: 0.5146, File: LLMVS+Appendix.pdf
-  - Match 2: Score: 0.5105, File: LLMVS+Appendix.pdf
-  - Match 3: Score: 0.5089, File: LLMVS+Appendix.pdf
-  - Match 4: Score: 0.5079, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-[2026-03-08T14:48:30.872Z] Resources for: "Volleys & Overheads"
-[2026-03-08T14:48:30.900Z] All resource URLs resolved.
-[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "I want to learn pickleball The Dink Shot & Non-Volley Zone (Kitchen) Play"
-[RAG DEBUG] Raw matches found: 5
-  - Match 0: Score: 0.5210, File: LLMVS+Appendix.pdf
-  - Match 1: Score: 0.5141, File: LLMVS+Appendix.pdf
-  - Match 2: Score: 0.5094, File: LLMVS+Appendix.pdf
-  - Match 3: Score: 0.5040, File: LLMVS+Appendix.pdf
-  - Match 4: Score: 0.5006, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-[2026-03-08T14:48:31.120Z] Practice for: "The Dink Shot & Non-Volley Zone (Kitchen) Play"
-[2026-03-08T14:48:37.008Z] Generated resources: 4 videos, 3 articles.
-[2026-03-08T14:48:37.008Z] Resolving resource URLs...
-[2026-03-08T14:48:38.546Z] All resource URLs resolved.
-[2026-03-08T14:48:38.608Z] Generated 5 practice scenarios.
-[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "I want to learn pickleball The Dink Shot & Non-Volley Zone (Kitchen) Play"
-[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "I want to learn pickleball Pickleball-Specific Footwork & Court Positioning"
-[RAG DEBUG] Raw matches found: 5
-  - Match 0: Score: 0.5210, File: LLMVS+Appendix.pdf
-  - Match 1: Score: 0.5141, File: LLMVS+Appendix.pdf
-  - Match 2: Score: 0.5094, File: LLMVS+Appendix.pdf
-  - Match 3: Score: 0.5040, File: LLMVS+Appendix.pdf
-  - Match 4: Score: 0.5006, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-[2026-03-08T14:48:38.910Z] Resources for: "The Dink Shot & Non-Volley Zone (Kitchen) Play"
-[RAG DEBUG] Raw matches found: 5
-  - Match 0: Score: 0.5218, File: LLMVS+Appendix.pdf
-  - Match 1: Score: 0.5157, File: LLMVS+Appendix.pdf
-  - Match 2: Score: 0.5020, File: LLMVS+Appendix.pdf
-  - Match 3: Score: 0.5018, File: LLMVS+Appendix.pdf
-  - Match 4: Score: 0.4994, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-[2026-03-08T14:48:38.985Z] Practice for: "Pickleball-Specific Footwork & Court Positioning"
-[2026-03-08T14:48:41.809Z] Generated resources: 4 videos, 3 articles.
-[2026-03-08T14:48:41.809Z] Resolving resource URLs...
-[2026-03-08T14:48:42.635Z] Generated 5 practice scenarios.
-[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "I want to learn pickleball Pickleball-Specific Footwork & Court Positioning"
-[RAG DEBUG] Raw matches found: 5
-  - Match 0: Score: 0.5218, File: LLMVS+Appendix.pdf
-  - Match 1: Score: 0.5157, File: LLMVS+Appendix.pdf
-  - Match 2: Score: 0.5020, File: LLMVS+Appendix.pdf
-  - Match 3: Score: 0.5018, File: LLMVS+Appendix.pdf
-  - Match 4: Score: 0.4994, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-[2026-03-08T14:48:42.857Z] Resources for: "Pickleball-Specific Footwork & Court Positioning"
-[2026-03-08T14:48:43.287Z] All resource URLs resolved.
-[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "I want to learn pickleball Advanced Strokes: Drives, Lobs, & Spin Techniques"
-[RAG DEBUG] Raw matches found: 5
-  - Match 0: Score: 0.5235, File: LLMVS+Appendix.pdf
-  - Match 1: Score: 0.5211, File: LLMVS+Appendix.pdf
-  - Match 2: Score: 0.5122, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-  - Match 3: Score: 0.5116, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-  - Match 4: Score: 0.5104, File: LLMVS+Appendix.pdf
-[2026-03-08T14:48:43.495Z] Practice for: "Advanced Strokes: Drives, Lobs, & Spin Techniques"
-[2026-03-08T14:48:45.057Z] Generated 5 practice scenarios.
-[RAG DEBUG] Querying Pinecone for User: FroW05HMsWVAU5BAl1XtQt7RLwc2, Topic: "I want to learn pickleball Advanced Strokes: Drives, Lobs, & Spin Techniques"
-[RAG DEBUG] Raw matches found: 5
-  - Match 0: Score: 0.5235, File: LLMVS+Appendix.pdf
-  - Match 1: Score: 0.5211, File: LLMVS+Appendix.pdf
-  - Match 2: Score: 0.5122, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-  - Match 3: Score: 0.5116, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
-  - Match 4: Score: 0.5104, File: LLMVS+Appendix.pdf
-[2026-03-08T14:48:45.278Z] Resources for: "Advanced Strokes: Drives, Lobs, & Spin Techniques"
-[2026-03-08T14:48:45.815Z] Generated 5 practice scenarios.
-[2026-03-08T14:48:52.890Z] Generated resources: 4 videos, 3 articles.
-[2026-03-08T14:48:52.891Z] Resolving resource URLs...
-[2026-03-08T14:48:54.834Z] All resource URLs resolved.
-[2026-03-08T14:48:56.568Z] Generated resources: 4 videos, 3 articles.
-[2026-03-08T14:48:56.568Z] Resolving resource URLs...
-[2026-03-08T14:48:58.105Z] All resource URLs resolved.
-[2026-03-08T14:49:01.817Z] Generated 5 practice scenarios.
-[2026-03-08T14:49:02.345Z] Generated resources: 4 videos, 3 articles.
-[2026-03-08T14:49:02.345Z] Resolving resource URLs...
-[2026-03-08T14:49:03.892Z] All resource URLs resolved.
-[2026-03-08T14:49:06.507Z] Generated 5 practice scenarios.
+  - Match 0: Score: 0.5564, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
+  - Match 1: Score: 0.5538, File: LLMVS+Appendix.pdf
+  - Match 2: Score: 0.5442, File: LLMVS+Appendix.pdf
+  - Match 3: Score: 0.5442, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
+  - Match 4: Score: 0.5439, File: Lee_Video_Summarization_with_Large_Language_Models_CVPR_2025_paper.pdf
+[2026-03-08T16:19:19.163Z] Resources for: "Mastering Poetic Imagery & Sensory Language"
+[2026-03-08T16:19:32.220Z] Generated resources: 4 videos, 3 articles.
+[2026-03-08T16:19:32.221Z] Resolving resource URLs...
+[2026-03-08T16:19:33.847Z] All resource URLs resolved.
+[2026-03-08T16:19:36.958Z] Generated 5 practice scenarios.
+[2026-03-08T16:20:08.457Z] Generating Level Quiz for: "Poetry" 
+[2026-03-08T16:20:08.552Z] Generating Level Quiz for: "Poetry" 
+[2026-03-08T16:20:15.902Z] Generated 5 quiz levels.
+[2026-03-08T16:20:16.257Z] Generated 5 quiz levels.

@@ -12,8 +12,8 @@ Instantly visualize your learning journey. QuestMap scans your goals, background
 ### 📚 Strict RAG Grounding
 No more AI hallucinations. QuestMap's specialized "Strict Grounding" engine ensures that practice questions and recommendations stick purely to the terminology and concepts found in your uploaded PDFs and notes.
 
-### 🔍 Knowledge Context Transparency
-See the "Neural Evidence" behind the AI's logic. A dedicated **Knowledge Context** tab shows you the exact snippets retrieved from your documents for every topic on the map.
+### 🛡️ RAG Relevance Guard
+Topic isolation at scale. QuestMap uses a high-confidence semantic threshold (0.65) and "Domain-Aware" instructions to ensure your old documents (like research papers) never pollute a new, unrelated learning quest (like a new hobby).
 
 ### ⚡ Parallelized Learning Flow
 Our optimized backend handles RAG retrieval, practice generation, and resource curation in parallel, delivering a zero-lag experience as you explore complex subjects.
@@ -44,8 +44,8 @@ The system automatically identifies and discards bibliographies, citations, and 
 1.  **Document Ingestion**: PDFs/DOCX/TXT files are parsed and cleaned.
 2.  **Semantic Chunking**: Text is split into meaningful segments, with citation-heavy chunks filtered out.
 3.  **Vector Embedding**: Chunks are converted into 768-dimensional vectors using Gemini Embeddings.
-4.  **Contextual Retrieval**: When a user selects a topic, Pinecone retrieves the top relevant "Source" and "Context" snippets.
-5.  **Grounded Generation**: Gemini uses these snippets as the *sole source of truth* to generate quizzes and recommendations.
+4.  **Contextual Retrieval**: When a user selects a topic, Pinecone retrieves relevant snippets using a strict **0.65 similarity filter** to ensure zero context leakage from unrelated files.
+5.  **Domain-Aware Generation**: Gemini verifies the domain of each snippet; if it doesn't match your current topic, the AI ignores the noise and builds a standard curriculum instead.
 
 ---
 
@@ -102,7 +102,7 @@ The system automatically identifies and discards bibliographies, citations, and 
 
 | Feature | Visual Evidence |
 | :--- | :--- |
-| **Knowledge Context** | ![Transparency](/Users/konda/.gemini/antigravity/brain/2bb2f111-a840-4d23-83e3-c9dd39749c41/learning_materials_section_1772971614040.png) |
+| **Interactive Map** | ![Dashboard Map](/Users/konda/.gemini/antigravity/brain/2bb2f111-a840-4d23-83e3-c9dd39749c41/final_dashboard_personalization_1772973507895.png) |
 | **Practice Grounding** | ![Practice Panels](/Users/konda/.gemini/antigravity/brain/2bb2f111-a840-4d23-83e3-c9dd39749c41/dashboard_practice_content_1772941954570.png) |
 | **RAG Ingestion** | ![File Upload](/Users/konda/.gemini/antigravity/brain/2bb2f111-a840-4d23-83e3-c9dd39749c41/rag_categorized_upload_test_1772973077268.webp) |
 

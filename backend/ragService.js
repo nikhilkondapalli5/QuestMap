@@ -279,7 +279,7 @@ async function retrieveCategorizedContext(userId, query, topK = 10) {
         }
 
         const matches = (docResults.matches || [])
-            .filter(m => m.score > 0.3)
+            .filter(m => m.score > 0.65) // Drastically increased from 0.45 to 0.65 to ensure strictly relevant context
             .map(m => ({
                 score: m.score,
                 ...m.metadata,
