@@ -1,7 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { FileText, User, Sparkles, AlertCircle } from 'lucide-react';
-import { cn } from '../lib/utils';
 
 const KnowledgeContext = ({ context }) => {
     if (!context || (!context.source?.length && !context.personal?.length)) {

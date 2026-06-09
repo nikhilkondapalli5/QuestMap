@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { signInWithPopup } from 'firebase/auth';
+import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { auth, googleProvider } from '../firebase';
 import { Compass, Mail, Lock, ArrowRight } from 'lucide-react';
 
@@ -12,6 +12,12 @@ const Login = () => {
         try {
             const result = await signInWithPopup(auth, googleProvider);
             if (result.user) {
+                // Extract the YouTube-scoped OAuth access token and store it for
+                // the session so Dashboard can pass it to the backend.
+                const credential = GoogleAuthProvider.credentialFromResult(result);
+                if (credential?.accessToken) {
+                    sessionStorage.setItem('yt_access_token', credential.accessToken);
+                }
                 navigate('/profile');
             }
         } catch (error) {

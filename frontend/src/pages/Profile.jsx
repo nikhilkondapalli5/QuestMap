@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Compass, User, BookOpen, Target, Sparkles, ArrowRight, LogOut, History } from 'lucide-react';
+import { Compass, User, BookOpen, Target, Sparkles, ArrowRight, LogOut, History, Globe } from 'lucide-react';
 import { auth } from '../firebase';
 import { signOut } from 'firebase/auth';
 import LoadingState from '../components/LoadingState';
 import TubesBackground from '../components/TubesBackground';
 import QuestLog from '../components/QuestLog';
 import DocumentUpload from '../components/DocumentUpload';
+import DomainPreferences from '../components/DomainPreferences';
+import { API_BASE } from '../config/api';
 
 const SKILL_LEVELS = [
     { value: 'beginner', label: 'Beginner', desc: 'Just starting out', color: 'from-green-500 to-emerald-600', icon: '🌱' },
@@ -28,34 +30,19 @@ const Profile = () => {
     const [showHistory, setShowHistory] = useState(false);
     const [documents, setDocuments] = useState([]);
 
-    useEffect(() => {
-        const unsubscribe = auth.onAuthStateChanged((user) => {
-            setCurrentUser(user);
-            if (user) {
-                fetchQuests(user.uid);
-                fetchDocuments(user.uid);
-            } else {
-                // Fallback: fetch quests saved without login (matches Dashboard save logic)
-                const fallbackUid = sessionStorage.getItem('questmap_uid') || 'anonymous';
-                fetchQuests(fallbackUid);
-            }
-        });
-        return unsubscribe;
-    }, []);
-
-    const fetchDocuments = async (uid) => {
+    const fetchDocuments = useCallback(async (uid) => {
         try {
-            const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/user-documents/${uid}`);
+            const res = await fetch(`${API_BASE}/user-documents/${uid}`);
             if (res.ok) setDocuments(await res.json());
         } catch (err) {
             console.error("Failed to fetch documents:", err);
         }
-    };
+    }, []);
 
-    const fetchQuests = async (uid) => {
+    const fetchQuests = useCallback(async (uid) => {
         setLoadingHistory(true);
         try {
-            const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/user-quests/${uid}`);
+            const res = await fetch(`${API_BASE}/user-quests/${uid}`);
             if (res.ok) {
                 const data = await res.json();
                 setQuests(data);
@@ -64,7 +51,32 @@ const Profile = () => {
             console.error("Failed to fetch quests:", err);
         }
         setLoadingHistory(false);
-    };
+    }, []);
+
+    useEffect(() => {
+        const unsubscribe = auth.onAuthStateChanged((user) => {
+            setCurrentUser(user);
+            if (user) {
+                fetchQuests(user.uid);
+                fetchDocuments(user.uid);
+                
+                // Trigger YouTube Subscription Sync to Supabase
+                const ytToken = sessionStorage.getItem('yt_access_token');
+                if (ytToken) {
+                    fetch(`${API_BASE}/youtube/sync-subscriptions`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId: user.uid, ytAccessToken: ytToken })
+                    }).catch(err => console.error("YouTube Sync Error:", err));
+                }
+            } else {
+                // Fallback: fetch quests saved without login (matches Dashboard save logic)
+                const fallbackUid = sessionStorage.getItem('questmap_uid') || 'anonymous';
+                fetchQuests(fallbackUid);
+            }
+        });
+        return unsubscribe;
+    }, [fetchDocuments, fetchQuests]);
 
     const handleResumeQuest = (quest) => {
         const profileData = {
@@ -83,7 +95,7 @@ const Profile = () => {
 
     const handleDeleteQuest = async (id) => {
         try {
-            const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/quest/${id}`, { method: 'DELETE' });
+            const res = await fetch(`${API_BASE}/quest/${id}`, { method: 'DELETE' });
             if (res.ok) {
                 const uid = currentUser?.uid || sessionStorage.getItem('questmap_uid') || 'anonymous';
                 fetchQuests(uid);
@@ -117,9 +129,7 @@ const Profile = () => {
         };
         sessionStorage.setItem('questmap_profile', JSON.stringify(profileData));
 
-        setTimeout(() => {
-            navigate('/dashboard');
-        }, 2200);
+        navigate('/dashboard');
     };
 
     const isValid = topic.trim().length > 0;
@@ -334,6 +344,16 @@ const Profile = () => {
                                         documents={documents}
                                         onDocumentsChange={() => fetchDocuments(currentUser.uid)}
                                     />
+                                </div>
+                            )}
+
+                            {currentUser && (
+                                <div className="space-y-4">
+                                    <label className="flex items-center gap-3 text-[11px] font-black text-blue-400 uppercase tracking-[0.3em] font-outfit">
+                                        <Globe className="w-4 h-4" />
+                                        Article Domain Preferences <span className="text-white/20 font-black lowercase tracking-normal ml-2">(optional)</span>
+                                    </label>
+                                    <DomainPreferences userId={currentUser.uid} />
                                 </div>
                             )}
 

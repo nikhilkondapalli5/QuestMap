@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from "../lib/utils";
 
@@ -39,20 +39,17 @@ const SphereKnowledgeMap = ({
     autoRotate = true,
     autoRotateSpeed = 0.2,
 }) => {
-    const [isMounted, setIsMounted] = useState(false);
     const [rotation, setRotation] = useState({ x: 15, y: 15 });
     const [velocity, setVelocity] = useState({ x: 0, y: 0 });
     const [isDragging, setIsDragging] = useState(false);
     const [hoveredIndex, setHoveredIndex] = useState(null);
-    const [nodePositions, setNodePositions] = useState([]);
 
     const containerRef = useRef(null);
     const lastMousePos = useRef({ x: 0, y: 0 });
     const animationFrame = useRef(null);
 
-    // Generate distributions once
-    useEffect(() => {
-        if (!mapData?.nodes) return;
+    const nodePositions = useMemo(() => {
+        if (!mapData?.nodes) return [];
         const count = mapData.nodes.length;
         const positions = [];
         const goldenRatio = (1 + Math.sqrt(5)) / 2;
@@ -71,12 +68,11 @@ const SphereKnowledgeMap = ({
 
             positions.push({ theta, phi, radius: sphereRadius });
         }
-        setNodePositions(positions);
-        setIsMounted(true);
+        return positions;
     }, [mapData, sphereRadius]);
 
     const calculateWorldPositions = useCallback(() => {
-        return nodePositions.map((pos, index) => {
+        return nodePositions.map((pos) => {
             const thetaRad = SPHERE_MATH.degreesToRadians(pos.theta);
             const phiRad = SPHERE_MATH.degreesToRadians(pos.phi);
             const rotXRad = SPHERE_MATH.degreesToRadians(rotation.x);
@@ -146,13 +142,14 @@ const SphereKnowledgeMap = ({
         lastMousePos.current = { x: e.clientX, y: e.clientY };
     };
 
-    const handlePointerMove = (e) => {
+    const handlePointerMove = useCallback((e) => {
         if (!isDragging) return;
         const dx = e.clientX - lastMousePos.current.x;
         const dy = e.clientY - lastMousePos.current.y;
 
-        const rx = -dy * dragSensitivity;
-        const ry = dx * dragSensitivity;
+        const clampSpeed = (value) => Math.max(-maxRotationSpeed, Math.min(maxRotationSpeed, value));
+        const rx = clampSpeed(-dy * dragSensitivity);
+        const ry = clampSpeed(dx * dragSensitivity);
 
         setRotation(prev => ({
             x: SPHERE_MATH.normalizeAngle(prev.x + rx),
@@ -160,9 +157,9 @@ const SphereKnowledgeMap = ({
         }));
         setVelocity({ x: rx, y: ry });
         lastMousePos.current = { x: e.clientX, y: e.clientY };
-    };
+    }, [dragSensitivity, isDragging, maxRotationSpeed]);
 
-    const handlePointerUp = () => setIsDragging(false);
+    const handlePointerUp = useCallback(() => setIsDragging(false), []);
 
     useEffect(() => {
         window.addEventListener('pointermove', handlePointerMove);
@@ -171,7 +168,7 @@ const SphereKnowledgeMap = ({
             window.removeEventListener('pointermove', handlePointerMove);
             window.removeEventListener('pointerup', handlePointerUp);
         };
-    }, [isDragging]);
+    }, [handlePointerMove, handlePointerUp]);
 
     const worldPositions = calculateWorldPositions();
 

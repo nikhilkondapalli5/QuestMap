@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:5000/api';
+import { API_BASE } from '../config/api';
 
 export const getMapData = async (topic, skillLevel) => {
     try {
@@ -32,12 +32,13 @@ export const getRecommendations = async (topic) => {
 
 export const getPracticeData = async (node) => {
     try {
-        const response = await fetch(`${API_BASE}/generate-practice`, {
+        const response = await fetch(`${API_BASE}/generate-node-data`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ node })
+            body: JSON.stringify(node)
         });
-        return await response.json();
+        const data = await response.json();
+        return data.practice;
     } catch (error) {
         console.error("getPracticeData failed:", error);
         return null;
@@ -46,12 +47,13 @@ export const getPracticeData = async (node) => {
 
 export const getResourceData = async (node) => {
     try {
-        const response = await fetch(`${API_BASE}/generate-resources`, {
+        const response = await fetch(`${API_BASE}/generate-node-data`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ node })
+            body: JSON.stringify(node)
         });
-        return await response.json();
+        const data = await response.json();
+        return data.resources;
     } catch (error) {
         console.error("getResourceData failed:", error);
         return null;

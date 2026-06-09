@@ -98,3 +98,56 @@ body {
 .animate-spin-slow {
     animation: spin-slow 12s linear infinite;
 }
+
+/* Dashboard light theme skin */
+.quest-theme-light {
+    background: #f1f5f9;
+    color: #111827;
+}
+
+.quest-theme-light .text-white {
+    color: #111827 !important;
+}
+
+.quest-theme-light .text-gray-300,
+.quest-theme-light .text-gray-400 {
+    color: #475569 !important;
+}
+
+.quest-theme-light .text-gray-500,
+.quest-theme-light .text-gray-600 {
+    color: #64748b !important;
+}
+
+.quest-theme-light [class*="bg-gray-800"],
+.quest-theme-light [class*="bg-gray-900"],
+.quest-theme-light [class*="bg-gray-950"] {
+    background-color: rgba(255, 255, 255, 0.88) !important;
+}
+
+.quest-theme-light [class*="border-gray-700"],
+.quest-theme-light [class*="border-gray-600"],
+.quest-theme-light [class*="border-white"] {
+    border-color: rgba(203, 213, 225, 0.85) !important;
+}
+
+.quest-theme-light [class*="bg-white/5"],
+.quest-theme-light [class*="bg-white/10"] {
+    background-color: rgba(15, 23, 42, 0.06) !important;
+}
+
+.quest-theme-light .resource-subtabs {
+    background: rgba(241, 245, 249, 0.9) !important;
+    border-color: rgba(203, 213, 225, 0.9) !important;
+}
+
+.quest-theme-light .resource-subtabs button[class*="bg-white/10"] {
+    background: #ffffff !important;
+    color: #111827 !important;
+}
+
+.quest-theme-light .bg-red-600 .text-white,
+.quest-theme-light [class*="from-blue"] .text-white,
+.quest-theme-light iframe + div .text-white {
+    color: #ffffff !important;
+}

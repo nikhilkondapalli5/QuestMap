@@ -145,7 +145,7 @@ async function storeSessionContext(userId, sessionData) {
                 node_label: sessionData.node_label || '',
                 skill_level: sessionData.skill_level || 'beginner',
                 type: sessionData.type || 'exploration',
-                summary: summary.slice(0, 1000),
+                summary: summary,
                 timestamp: new Date().toISOString(),
             },
         }]});
@@ -178,7 +178,7 @@ async function storeDocumentChunks(userId, documentId, chunks, filename, categor
                     filename,
                     chunkIndex: i,
                     totalChunks: chunks.length,
-                    content: chunks[i].slice(0, 1000),
+                    content: chunks[i],
                     timestamp: new Date().toISOString(),
                 },
             });

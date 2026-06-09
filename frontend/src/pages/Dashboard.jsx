@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Compass, Map, Lightbulb, BookOpen, Youtube, LogOut, User, Clock, Brain, ChevronRight, Sparkles, RefreshCw, Download, X } from 'lucide-react';
+import { Compass, Lightbulb, BookOpen, Youtube, LogOut, Clock, Brain, Sparkles, RefreshCw, Moon, Sun } from 'lucide-react';
 import RecommendationList from '../components/RecommendationCard';
 import PracticePanel from '../components/PracticePanel';
 import ResourcePanel from '../components/ResourcePanel';
@@ -10,15 +10,18 @@ import TubesBackground from '../components/TubesBackground';
 import LearningPathMap from '../components/LearningPathMap';
 import { cn } from '../lib/utils';
 import { auth } from '../firebase';
-// Assuming cn utility is available here
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+import { API_BASE } from '../config/api';
 
 const TABS = [
     { id: 'recommendations', label: 'Recommendations', icon: Lightbulb, color: 'text-amber-400', accent: 'bg-amber-400' },
     { id: 'practice', label: 'Practice', icon: BookOpen, color: 'text-emerald-400', accent: 'bg-emerald-400' },
     { id: 'resources', label: 'Resources', icon: Youtube, color: 'text-red-400', accent: 'bg-red-400' },
 ];
+
+const NODE_CACHE_VERSION = 'youtube-search-v6';
+const DEFAULT_PANEL_WIDTH = 480;
+const MIN_PANEL_WIDTH = 360;
+const MAX_PANEL_WIDTH = 760;
 
 const Dashboard = () => {
     const navigate = useNavigate();
@@ -32,15 +35,32 @@ const Dashboard = () => {
     const [recommendations, setRecommendations] = useState(null);
     const [practiceData, setPracticeData] = useState(null);
     const [resourceData, setResourceData] = useState(null);
-    const [recDebugContext, setRecDebugContext] = useState(null);
 
     // UI states
     const [selectedNode, setSelectedNode] = useState(null);
     const [activeTab, setActiveTab] = useState('recommendations');
+    const [panelWidth, setPanelWidth] = useState(() => {
+        const saved = Number(sessionStorage.getItem('questmap_panel_width'));
+        return Number.isFinite(saved) && saved >= MIN_PANEL_WIDTH ? saved : DEFAULT_PANEL_WIDTH;
+    });
+    const [isResizingPanel, setIsResizingPanel] = useState(false);
+    const [theme, setTheme] = useState(() => sessionStorage.getItem('questmap_theme') || 'dark');
+    const isLightTheme = theme === 'light';
+
+    // Per-node cache: { [nodeId]: { practice, resources } }
+    const nodeCacheRef = useRef(null);
+    if (nodeCacheRef.current === null) {
+        try {
+            const saved = sessionStorage.getItem('questmap_node_cache');
+            const parsed = saved ? JSON.parse(saved) : {};
+            nodeCacheRef.current = parsed.__version === NODE_CACHE_VERSION ? parsed : { __version: NODE_CACHE_VERSION };
+        } catch {
+            nodeCacheRef.current = { __version: NODE_CACHE_VERSION };
+        }
+    }
     const [loading, setLoading] = useState({ profile: false, map: false, recommendations: false, practice: false, resources: false });
     const [error, setError] = useState(null);
     const [initialLoadComplete, setInitialLoadComplete] = useState(false);
-    const [documents, setDocuments] = useState([]);
 
     // Load profile from sessionStorage on mount
     useEffect(() => {
@@ -59,7 +79,7 @@ const Dashboard = () => {
 
     // Fetch helper
     const apiFetch = useCallback(async (endpoint, body) => {
-        const res = await fetch(`${API_BASE}/api/${endpoint}`, {
+        const res = await fetch(`${API_BASE}/${endpoint}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
@@ -75,17 +95,30 @@ const Dashboard = () => {
     useEffect(() => {
         if (!profile || initialLoadComplete) return;
 
-        // Check for cached data (from Resume Quest)
-        const cached = sessionStorage.getItem('questmap_cached_data');
+        const cached = sessionStorage.getItem('questmap_dashboard_cache') || sessionStorage.getItem('questmap_cached_data');
         if (cached) {
             try {
                 const parsed = JSON.parse(cached);
-                setMapData(parsed.mapData);
-                setRecommendations(parsed.recommendations);
-                setProfileData(parsed.profileData);
-                setInitialLoadComplete(true);
-                sessionStorage.removeItem('questmap_cached_data'); // Clear it after use
-                return;
+                const cachedTopic = parsed.topic || (parsed.profileData && parsed.profileData.topic);
+
+                // If the user changed their topic in the profile, we MUST invalidate the old cache!
+                if (cachedTopic && profile.topic && cachedTopic.toLowerCase() !== profile.topic.toLowerCase()) {
+                    sessionStorage.removeItem('questmap_dashboard_cache');
+                    sessionStorage.removeItem('questmap_cached_data');
+                    sessionStorage.removeItem('questmap_node_cache');
+                } else {
+                    setMapData(parsed.mapData);
+                    setRecommendations(parsed.recommendations);
+                    setProfileData(parsed.profileData);
+                    setInitialLoadComplete(true);
+                    
+                    // If it came from Resume Quest, move it to dashboard cache and clear the old one
+                    if (sessionStorage.getItem('questmap_cached_data')) {
+                        sessionStorage.setItem('questmap_dashboard_cache', cached);
+                        sessionStorage.removeItem('questmap_cached_data'); 
+                    }
+                    return;
+                }
             } catch (e) {
                 console.error("Cache parse failed:", e);
             }
@@ -104,36 +137,45 @@ const Dashboard = () => {
                 setProfileData(profResult);
                 setLoading(l => ({ ...l, profile: false }));
 
-                // Step 2: Generate knowledge map
-                setLoading(l => ({ ...l, map: true }));
-                const mapResult = await apiFetch('generate-map', {
-                    ...profile,
-                    userId: uid,
-                    learning_history: profResult.learning_history,
-                });
+                // Step 2 & 3: Generate map + recommendations IN PARALLEL (both depend on profile, not on each other)
+                setLoading(l => ({ ...l, map: true, recommendations: true }));
+
+                const [mapResult, recResult] = await Promise.all([
+                    apiFetch('generate-map', {
+                        ...profile,
+                        userId: uid,
+                        learning_history: profResult.learning_history,
+                    }),
+                    apiFetch('generate-recommendations', {
+                        ...profile,
+                        userId: uid,
+                        learning_history: profResult.learning_history,
+                        knowledge_gaps: profResult.knowledge_gaps,
+                    }),
+                ]);
+
                 setMapData(mapResult);
                 setLoading(l => ({ ...l, map: false }));
 
-                // Step 3: Generate recommendations
-                setLoading(l => ({ ...l, recommendations: true }));
-                const recResult = await apiFetch('generate-recommendations', {
-                    ...profile,
-                    userId: uid,
-                    learning_history: profResult.learning_history,
-                    knowledge_gaps: profResult.knowledge_gaps,
-                });
                 setRecommendations(recResult.recommendations);
-                setRecDebugContext(recResult._debug_context);
                 setLoading(l => ({ ...l, recommendations: false }));
 
                 setInitialLoadComplete(true);
+
+                // Cache the main curriculum data so we don't re-fetch if we go to quiz and back
+                sessionStorage.setItem('questmap_dashboard_cache', JSON.stringify({
+                    topic: profile.topic,
+                    mapData: mapResult,
+                    recommendations: recResult.recommendations,
+                    profileData: profResult
+                }));
 
                 // PERSISTENCE: Save quest to MongoDB
                 if (import.meta.env.VITE_AUTOSAVE !== 'false') {
                     const currentUser = auth.currentUser;
                     const uid = currentUser ? currentUser.uid : (sessionStorage.getItem('questmap_uid') || 'anonymous');
 
-                    fetch(`${API_BASE}/api/save-quest`, {
+                    fetch(`${API_BASE}/save-quest`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -157,11 +199,32 @@ const Dashboard = () => {
         generateInitialData();
     }, [profile, initialLoadComplete, apiFetch]);
 
+    // Persist node cache to sessionStorage (survives quiz navigation)
+    const persistNodeCache = useCallback((cache) => {
+        try {
+            sessionStorage.setItem('questmap_node_cache', JSON.stringify(cache));
+        } catch (err) {
+            console.warn('Failed to persist node cache:', err);
+        }
+    }, []);
+
     // Load node-specific data when a node is selected
     const handleNodeSelect = useCallback(async (node) => {
         setSelectedNode(node);
+        const nodeId = node.id || node.label;
 
-        // Immediate UI feedback: Clear old data and trigger loading state
+        // Check cache first — instant restore
+        const cached = nodeCacheRef.current[nodeId];
+        if (cached) {
+            console.log(`[Cache HIT] Node "${node.label}" — restoring from cache`);
+            setPracticeData(cached.practice);
+            setResourceData(cached.resources);
+            return;
+        }
+
+        console.log(`[Cache MISS] Node "${node.label}" — fetching node data`);
+
+        // Clear old data and trigger loading state
         setPracticeData(null);
         setResourceData(null);
         setLoading(l => ({ ...l, practice: true, resources: true }));
@@ -170,41 +233,88 @@ const Dashboard = () => {
         const uid = currentUser ? currentUser.uid : (sessionStorage.getItem('questmap_uid') || 'anonymous');
 
         try {
-            // FIRE IN PARALLEL to reduce lag
-            const [practiceResult, resourceResult] = await Promise.all([
-                apiFetch('generate-practice', {
-                    topic: profile.topic,
-                    userId: uid,
-                    node_label: node.label,
-                    skill_level: profile.skill_level,
-                    key_concepts: node.key_concepts,
-                }),
-                apiFetch('generate-resources', {
-                    topic: profile.topic,
-                    userId: uid,
-                    node_label: node.label,
-                    skill_level: profile.skill_level,
-                })
-            ]);
+            // SINGLE merged call — 1 Pinecone lookup + 2 parallel LLM calls on the backend
+            const nodeData = await apiFetch('generate-node-data', {
+                topic: profile.topic,
+                userId: uid,
+                node_label: node.label,
+                skill_level: profile.skill_level,
+                key_concepts: node.key_concepts,
+                ytAccessToken: sessionStorage.getItem('yt_access_token') || null,
+            });
 
-            setPracticeData(practiceResult);
-            setResourceData(resourceResult);
+            setPracticeData(nodeData.practice);
+            setResourceData(nodeData.resources);
+
+            // Store in cache
+            nodeCacheRef.current[nodeId] = { practice: nodeData.practice, resources: nodeData.resources };
+            persistNodeCache(nodeCacheRef.current);
         } catch (err) {
             console.error('Node data generation error:', err);
         } finally {
             setLoading(l => ({ ...l, practice: false, resources: false }));
         }
-    }, [profile, apiFetch]);
+    }, [profile, apiFetch, persistNodeCache]);
 
     const handleLogout = () => {
         sessionStorage.removeItem('questmap_profile');
+        sessionStorage.removeItem('questmap_dashboard_cache');
+        sessionStorage.removeItem('questmap_node_cache');
         navigate('/');
     };
 
     const handleNewTopic = () => {
         sessionStorage.removeItem('questmap_profile');
+        sessionStorage.removeItem('questmap_dashboard_cache');
+        sessionStorage.removeItem('questmap_node_cache');
         navigate('/profile');
     };
+
+    const clampPanelWidth = useCallback((width) => {
+        const viewportLimit = typeof window === 'undefined' ? MAX_PANEL_WIDTH : Math.max(MIN_PANEL_WIDTH, window.innerWidth - 420);
+        return Math.min(Math.max(width, MIN_PANEL_WIDTH), Math.min(MAX_PANEL_WIDTH, viewportLimit));
+    }, []);
+
+    const handlePanelResizeStart = useCallback((event) => {
+        event.preventDefault();
+        setIsResizingPanel(true);
+    }, []);
+
+    useEffect(() => {
+        if (!isResizingPanel) return undefined;
+
+        const handlePointerMove = (event) => {
+            const nextWidth = clampPanelWidth(window.innerWidth - event.clientX);
+            setPanelWidth(nextWidth);
+        };
+        const handlePointerUp = () => {
+            setIsResizingPanel(false);
+        };
+
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        window.addEventListener('pointermove', handlePointerMove);
+        window.addEventListener('pointerup', handlePointerUp);
+
+        return () => {
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            window.removeEventListener('pointermove', handlePointerMove);
+            window.removeEventListener('pointerup', handlePointerUp);
+        };
+    }, [clampPanelWidth, isResizingPanel]);
+
+    useEffect(() => {
+        sessionStorage.setItem('questmap_panel_width', String(panelWidth));
+    }, [panelWidth]);
+
+    const handleThemeToggle = useCallback(() => {
+        setTheme(current => {
+            const next = current === 'dark' ? 'light' : 'dark';
+            sessionStorage.setItem('questmap_theme', next);
+            return next;
+        });
+    }, []);
 
     // Initial loading state
     if (!profile) return null;
@@ -253,21 +363,21 @@ const Dashboard = () => {
     }
 
     return (
-        <div className="h-screen bg-[#000000] text-white flex flex-col overflow-hidden selection:bg-blue-500/30 font-sans">
+        <div className={`h-screen flex flex-col overflow-hidden selection:bg-blue-500/30 font-sans ${isLightTheme ? 'quest-theme-light bg-slate-100 text-gray-950' : 'bg-[#000000] text-white'}`}>
             {/* Top Bar - Glassmorphism */}
-            <header className="flex-shrink-0 border-b border-white/5 px-8 py-4 bg-black/40 backdrop-blur-xl z-50">
+            <header className={`flex-shrink-0 border-b px-8 py-4 backdrop-blur-xl z-50 ${isLightTheme ? 'border-gray-200 bg-white/80' : 'border-white/5 bg-black/40'}`}>
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-6">
                         <div className="flex items-center gap-3">
                             <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-2 rounded-xl shadow-lg shadow-blue-500/20">
                                 <Compass className="w-5 h-5 text-white" />
                             </div>
-                            <span className="text-lg font-black tracking-tighter uppercase font-outfit text-white">QuestMap.AI</span>
+                            <span className={cn("text-lg font-black tracking-tighter uppercase font-outfit", isLightTheme ? "text-gray-950" : "text-white")}>QuestMap.AI</span>
                         </div>
-                        <div className="h-6 w-px bg-white/10" />
-                        <div className="flex items-center gap-3 px-4 py-1.5 rounded-full bg-white/5 border border-white/10">
+                        <div className={cn("h-6 w-px", isLightTheme ? "bg-gray-200" : "bg-white/10")} />
+                        <div className={cn("flex items-center gap-3 px-4 py-1.5 rounded-full border", isLightTheme ? "bg-gray-100 border-gray-200" : "bg-white/5 border-white/10")}>
                             <Brain className="w-4 h-4 text-purple-400" />
-                            <span className="text-[11px] font-black uppercase tracking-widest text-gray-300 max-w-[200px] truncate">{profile.topic}</span>
+                            <span className={cn("text-[11px] font-black uppercase tracking-widest max-w-[200px] truncate", isLightTheme ? "text-gray-700" : "text-gray-300")}>{profile.topic}</span>
                         </div>
                         <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.2em] border ${profile.skill_level === 'beginner' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
                             profile.skill_level === 'intermediate' ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' :
@@ -289,13 +399,30 @@ const Dashboard = () => {
                                 </span>
                             </div>
                         )}
+                        <button
+                            type="button"
+                            onClick={handleThemeToggle}
+                            className={cn(
+                                "h-9 w-[76px] rounded-full border p-1 transition-colors flex items-center",
+                                isLightTheme ? "bg-gray-100 border-gray-300 justify-end" : "bg-white/5 border-white/10 justify-start"
+                            )}
+                            aria-label="Toggle light or dark theme"
+                            aria-pressed={isLightTheme}
+                        >
+                            <span className={cn(
+                                "h-7 w-7 rounded-full flex items-center justify-center shadow-sm transition-colors",
+                                isLightTheme ? "bg-white text-amber-500" : "bg-gray-800 text-blue-300"
+                            )}>
+                                {isLightTheme ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+                            </span>
+                        </button>
                         <button onClick={() => navigate('/quiz')} className="px-4 py-2 rounded-xl bg-blue-500/20 border border-blue-500/30 hover:bg-blue-500/40 text-[10px] font-black uppercase tracking-widest text-blue-300 hover:text-white transition-all">
                             Test Mastery
                         </button>
-                        <button onClick={handleNewTopic} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-[10px] font-black uppercase tracking-widest text-white/60 hover:text-white transition-all">
+                        <button onClick={handleNewTopic} className={cn("px-4 py-2 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all", isLightTheme ? "bg-gray-100 border-gray-200 hover:bg-gray-200 text-gray-600 hover:text-gray-950" : "bg-white/5 border-white/10 hover:bg-white/10 text-white/60 hover:text-white")}>
                             Change Mesh
                         </button>
-                        <button onClick={handleLogout} className="p-2 text-white/20 hover:text-white/60 transition-colors">
+                        <button onClick={handleLogout} className={cn("p-2 transition-colors", isLightTheme ? "text-gray-400 hover:text-gray-700" : "text-white/20 hover:text-white/60")}>
                             <LogOut className="w-5 h-5" />
                         </button>
                     </div>
@@ -306,7 +433,7 @@ const Dashboard = () => {
             <div className="flex-1 flex overflow-hidden relative">
 
                 {/* Background Decoration */}
-                <div className="absolute inset-0 pointer-events-none opacity-20">
+                    <div className={cn("absolute inset-0 pointer-events-none", isLightTheme ? "opacity-0" : "opacity-20")}>
                     <div className="absolute top-1/4 -left-20 w-80 h-80 bg-blue-500/10 rounded-full blur-[100px]" />
                     <div className="absolute bottom-1/4 -right-20 w-80 h-80 bg-purple-500/10 rounded-full blur-[100px]" />
                 </div>
@@ -322,66 +449,46 @@ const Dashboard = () => {
                         />
                     </div>
 
-                    {/* Selected Node Status Bar - Glass */}
-                    <AnimatePresence>
-                        {selectedNode && (
-                            <motion.div
-                                initial={{ y: 100, opacity: 0 }}
-                                animate={{ y: 0, opacity: 1 }}
-                                exit={{ y: 100, opacity: 0 }}
-                                className="absolute bottom-8 left-8 right-8 z-30"
-                            >
-                                <div className="bg-black/60 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] p-8 shadow-2xl flex items-center justify-between gap-12 group relative">
-                                    <button
-                                        onClick={() => setSelectedNode(null)}
-                                        className="absolute -top-3 -right-3 w-8 h-8 bg-gray-800 text-gray-400 hover:text-white rounded-full flex items-center justify-center border border-white/10 shadow-xl transition-colors z-40"
-                                    >
-                                        <X className="w-4 h-4" />
-                                    </button>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-4 mb-2">
-                                            <span className="px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full text-[9px] font-black uppercase tracking-widest text-blue-400">
-                                                {selectedNode.bloom_level}
-                                            </span>
-                                            <h3 className="text-xl font-black font-outfit text-white uppercase tracking-tight truncate">{selectedNode.label}</h3>
-                                        </div>
-                                        <p className="text-sm text-gray-400 leading-relaxed max-w-2xl line-clamp-2">{selectedNode.description}</p>
-                                    </div>
-
-                                    <div className="flex items-center gap-10 flex-shrink-0">
-                                        <div className="flex flex-col items-end">
-                                            <span className="text-[10px] font-black text-white/20 uppercase tracking-widest mb-1">Time Investment</span>
-                                            <span className="text-lg font-black text-white">{selectedNode.estimated_hours}H EST</span>
-                                        </div>
-                                        <div className="h-10 w-px bg-white/10" />
-                                        <div className="flex flex-col items-end">
-                                            <span className="text-[10px] font-black text-white/20 uppercase tracking-widest mb-1">Node Status</span>
-                                            <span className={cn(
-                                                "text-sm font-black uppercase tracking-widest",
-                                                selectedNode.status === 'completed' ? 'text-emerald-400' :
-                                                    selectedNode.status === 'recommended_next' ? 'text-purple-400' :
-                                                        selectedNode.status === 'in_progress' ? 'text-blue-400' :
-                                                            'text-gray-500'
-                                            )}>
-                                                {(selectedNode.status || '').replace('_', ' ')}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
+                    {/* Selected Node Status Bar removed per user request */}
                 </div>
 
-                {/* Right: Data Expansion Panels - Dark Side Panel */}
-                <div className="w-[480px] flex-shrink-0 flex flex-col bg-black/80 backdrop-blur-3xl border-l border-white/5 relative z-20">
+                <div
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-valuemin={MIN_PANEL_WIDTH}
+                    aria-valuemax={MAX_PANEL_WIDTH}
+                    aria-valuenow={Math.round(panelWidth)}
+                    onPointerDown={handlePanelResizeStart}
+                    className={cn(
+                        "hidden md:flex w-2 flex-shrink-0 items-center justify-center cursor-col-resize relative z-30 group",
+                        isLightTheme ? "bg-transparent" : "bg-transparent"
+                    )}
+                >
+                    <div className={cn(
+                        "h-14 w-1 rounded-full transition-colors",
+                        isResizingPanel
+                            ? "bg-blue-400"
+                            : isLightTheme
+                                ? "bg-gray-300 group-hover:bg-blue-400"
+                                : "bg-white/10 group-hover:bg-blue-400"
+                    )} />
+                </div>
+
+                {/* Right: Data Expansion Panels */}
+                <div
+                    className={cn(
+                        "flex-shrink-0 flex flex-col backdrop-blur-3xl border-l relative z-20 max-md:w-full",
+                        isLightTheme ? "bg-white/90 border-gray-200" : "bg-black/80 border-white/5"
+                    )}
+                    style={{ width: panelWidth }}
+                >
                     {/* Tab Selection */}
-                    <div className="flex p-2 bg-white/5 m-4 rounded-[1.5rem] border border-white/10">
+                    <div className={cn("flex p-2 m-4 rounded-[1.5rem] border", isLightTheme ? "bg-gray-100 border-gray-200" : "bg-white/5 border-white/10")}>
                         {TABS.map(tab => (
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
-                                className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all relative ${activeTab === tab.id ? 'text-white shadow-xl' : 'text-gray-500 hover:text-gray-400'
+                                className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all relative ${activeTab === tab.id ? (isLightTheme ? 'text-gray-950 shadow-sm' : 'text-white shadow-xl') : 'text-gray-500 hover:text-gray-400'
                                     }`}
                             >
                                 <tab.icon className={cn("w-4 h-4", activeTab === tab.id ? tab.color : "text-gray-600")} />
@@ -389,7 +496,7 @@ const Dashboard = () => {
                                 {activeTab === tab.id && (
                                     <motion.div
                                         layoutId="tab-pill"
-                                        className="absolute inset-0 bg-white/10 rounded-2xl -z-10"
+                                        className={cn("absolute inset-0 rounded-2xl -z-10", isLightTheme ? "bg-white" : "bg-white/10")}
                                         transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
                                     />
                                 )}
@@ -405,7 +512,7 @@ const Dashboard = () => {
                                 return (
                                     <>
                                         <div className={cn("w-2 h-2 rounded-full", active.accent)} />
-                                        <span className="text-[10px] font-black uppercase tracking-[0.5em]">{active.label} Stream</span>
+                                        <span className={cn("text-[10px] font-black uppercase tracking-[0.5em]", isLightTheme ? "text-gray-600" : "")}>{active.label} Stream</span>
                                     </>
                                 );
                             })()}

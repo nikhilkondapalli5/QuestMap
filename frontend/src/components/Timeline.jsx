@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useMotionValueEvent, useScroll, useTransform, motion } from "framer-motion";
+import { useScroll, useTransform, motion } from "framer-motion";
 
 export const Timeline = ({ data }) => {
     const ref = useRef(null);

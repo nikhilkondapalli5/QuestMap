@@ -223,11 +223,14 @@ export function InteractiveGlobe({
       }
     }
 
-    animRef.current = requestAnimationFrame(draw);
   }, [dotColor, arcColor, markerColor, autoRotateSpeed, connections, markers]);
 
   useEffect(() => {
-    animRef.current = requestAnimationFrame(draw);
+    const animate = () => {
+      draw();
+      animRef.current = requestAnimationFrame(animate);
+    };
+    animRef.current = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(animRef.current);
   }, [draw]);
 

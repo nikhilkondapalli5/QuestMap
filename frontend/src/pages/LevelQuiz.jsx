@@ -4,8 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Check, X, BrainCircuit, Sparkles, Lock } from 'lucide-react';
 import { Timeline } from '../components/Timeline';
 import LoadingState from '../components/LoadingState';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+import { API_BASE } from '../config/api';
 
 const LevelQuiz = () => {
     const navigate = useNavigate();
@@ -25,7 +24,7 @@ const LevelQuiz = () => {
             const profile = JSON.parse(cachedProfileStr);
 
             try {
-                const res = await fetch(`${API_BASE}/api/generate-quiz`, {
+                const res = await fetch(`${API_BASE}/generate-quiz`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -47,7 +46,7 @@ const LevelQuiz = () => {
         fetchQuiz();
     }, [navigate]);
 
-    const handleAnswer = (levelIndex, optionIndex, correctIndex, levelData) => {
+    const handleAnswer = (levelIndex, optionIndex, correctIndex) => {
         if (answers[levelIndex] !== undefined) return; // Already answered
 
         setAnswers(prev => ({ ...prev, [levelIndex]: optionIndex }));

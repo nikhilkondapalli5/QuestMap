@@ -22,6 +22,9 @@ try {
     const app = initializeApp(firebaseConfig);
     auth = getAuth(app);
     googleProvider = new GoogleAuthProvider();
+    // Request YouTube read-only access so we can personalise video recommendations
+    // based on the user's subscriptions.
+    googleProvider.addScope('https://www.googleapis.com/auth/youtube.readonly');
     console.log("Firebase initialized successfully");
 } catch (error) {
     console.error("Firebase Initialization Error:", error);

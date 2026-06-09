@@ -1,13 +1,27 @@
+require('dotenv').config();
+const traceloop = require('@traceloop/node-server-sdk');
+
+traceloop.initialize({
+    appName: 'team-hackathon-backend',
+    baseUrl: process.env.TRACELOOP_BASE_URL || 'http://127.0.0.1:6006',
+    disableBatch: true // Send traces immediately for local debugging
+});
+
+
+
 const express = require('express');
 const cors = require('cors');
-require('dotenv').config();
 const mongoose = require('mongoose');
 const multer = require('multer');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { GoogleGenAI } = require('@google/genai');
 const Quest = require('./models/Quest');
 const Document = require('./models/Document');
+const UserSubscriptions = require('./models/UserSubscriptions');
+const UserPreferences = require('./models/UserPreferences');
 const { initRAG, storeSessionContext, storeDocumentChunks, retrieveRelevantContext, retrieveCategorizedContext, formatRAGContext, chunkText } = require('./ragService');
 const { parseFile, SUPPORTED_MIMETYPES } = require('./fileParser');
+const { syncUserChannels, searchLocalVideos } = require('./youtubeDiscoveryService');
+const { startCron } = require('./youtubeSyncCron');
 
 // Multer config — memory storage, 10MB max
 const upload = multer({
@@ -24,9 +38,11 @@ const upload = multer({
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const SUBSCRIPTION_CACHE_TTL_DAYS = 30;
+const SUBSCRIPTION_CACHE_TTL_MS = SUBSCRIPTION_CACHE_TTL_DAYS * 24 * 60 * 60 * 1000;
 
-// Initialize Gemini
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// Initialize Gemini API client
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 app.use(cors());
 app.use(express.json());
@@ -57,182 +73,553 @@ CRITICAL RAG GROUNDING RULES:
 3. Avoid hallucinating concepts, frameworks, or advanced jargon that is NOT present in the provided context or intrinsic to the basic core topic.
 4. If you aren't sure if a term is in the document, refer to it as "from your provided materials" or stick to simpler explanations.
 
-You never hallucinate URLs. When suggesting YouTube videos, you provide realistic search queries and estimated timestamp ranges based on typical tutorial structure, not fabricated links.`;
+You never hallucinate URLs. When suggesting YouTube videos, provide realistic search queries and broad watch-section guidance, not fabricated links or exact timestamps.`;
 
-/**
- * Resolve a YouTube search query into a real video URL + title by scraping YouTube search results.
- * Parses ytInitialData JSON to get real videoId, title, and channel.
- * Falls back to YouTube search URL if scraping fails.
- */
-async function resolveYouTubeVideo(searchQuery) {
-    try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 8000);
-        const res = await fetch(
-            `https://www.youtube.com/results?search_query=${encodeURIComponent(searchQuery)}`,
-            {
-                signal: controller.signal,
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                }
-            }
-        );
-        clearTimeout(timeout);
-        if (!res.ok) throw new Error(`YouTube returned ${res.status}`);
+const YOUTUBE_DISPLAY_RESULT_COUNT = 8;
+const YOUTUBE_SEARCH_CANDIDATE_COUNT = 50;
+const YOUTUBE_SUBSCRIBED_CHANNEL_DISPLAY_CAP = 5;
 
-        const html = await res.text();
+function compactSearchText(value) {
+    return String(value || '')
+        .replace(/&amp;/g, '&')
+        .replace(/[’']s\b/gi, '')
+        .replace(/[’']/g, '')
+        .replace(/[^a-zA-Z0-9\s]/g, ' ')
+        .toLowerCase()
+        .replace(/\b(what\s+is|what\s+are|the|a|an|overview|introduction|intro|basics|basic|core|of|to|tutorial)\b/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
 
-        // Try to parse ytInitialData for accurate title + channel
-        const initDataMatch = html.match(/var ytInitialData = ({.*?});/s);
-        if (initDataMatch) {
-            try {
-                const data = JSON.parse(initDataMatch[1]);
-                const contents = data?.contents?.twoColumnSearchResultsRenderer
-                    ?.primaryContents?.sectionListRenderer?.contents?.[0]
-                    ?.itemSectionRenderer?.contents || [];
+function decodeHtmlText(value) {
+    return String(value || '')
+        .replace(/&amp;/g, '&')
+        .replace(/&#39;/g, "'")
+        .replace(/&quot;/g, '"')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>');
+}
 
-                for (const item of contents) {
-                    const video = item.videoRenderer;
-                    if (video?.videoId) {
-                        return {
-                            url: `https://www.youtube.com/watch?v=${video.videoId}`,
-                            realTitle: video.title?.runs?.[0]?.text || null,
-                            realChannel: video.ownerText?.runs?.[0]?.text || null,
-                        };
-                    }
-                }
-            } catch { /* fall through to regex approach */ }
+function hasMeaningfulOverlap(a, b) {
+    const aWords = new Set(compactSearchText(a).split(' ').filter(Boolean));
+    const bWords = compactSearchText(b).split(' ').filter(Boolean);
+    if (aWords.size === 0 || bWords.length === 0) return false;
+
+    const overlapCount = bWords.filter(word => aWords.has(word)).length;
+    return overlapCount / bWords.length >= 0.6;
+}
+
+function buildYouTubeSearchQuery(topic, nodeLabel, keyConcepts = []) {
+    const candidates = [
+        compactSearchText(nodeLabel),
+        compactSearchText(topic),
+        ...(keyConcepts || []).map(compactSearchText),
+    ].filter(Boolean);
+
+    const queryParts = [];
+    for (const candidate of candidates) {
+        if (!queryParts.some(existing => hasMeaningfulOverlap(existing, candidate) || hasMeaningfulOverlap(candidate, existing))) {
+            queryParts.push(candidate);
         }
-
-        // Fallback: regex for videoId only
-        const matches = [...html.matchAll(/"videoId":"([^"]+)"/g)];
-        const uniqueIds = [...new Set(matches.map(m => m[1]))];
-        if (uniqueIds.length > 0) {
-            return { url: `https://www.youtube.com/watch?v=${uniqueIds[0]}`, realTitle: null, realChannel: null };
-        }
-    } catch (err) {
-        console.warn(`YouTube resolve failed for "${searchQuery}":`, err.message);
     }
-    return { url: `https://www.youtube.com/results?search_query=${encodeURIComponent(searchQuery)}`, realTitle: null, realChannel: null };
+
+    const baseQuery = queryParts.slice(0, 2).join(' ') || compactSearchText(topic) || compactSearchText(nodeLabel);
+    return `${baseQuery} explained`.trim();
 }
 
-/**
- * Resolve all YouTube search queries in resource data to real video URLs + titles.
- */
-async function resolveYouTubeUrls(resourceData) {
-    if (!resourceData?.youtube_videos?.length) return resourceData;
-
-    const resolved = await Promise.all(
-        resourceData.youtube_videos.map(async (video) => {
-            const query = video.search_query || `${video.channel || ''} ${video.title || ''}`.trim();
-            const result = await resolveYouTubeVideo(query);
-            return {
-                ...video,
-                url: result.url,
-                title: result.realTitle || video.title,           // Use real title if available
-                channel: result.realChannel || video.channel,     // Use real channel if available
-                search_query: query,
-            };
-        })
-    );
-
-    return { ...resourceData, youtube_videos: resolved };
+function normalizeVideoSuggestion(video) {
+    const { snippet_timestamp, ...rest } = video;
+    return {
+        ...rest,
+        suggested_section: video.suggested_section || (snippet_timestamp ? 'Suggested watch focus' : undefined),
+    };
 }
 
-/**
- * Resolve an article search query into a real URL + title by scraping DuckDuckGo HTML search results.
- * Extracts the first real result URL and its page title from DDG results.
- */
-async function resolveArticleUrl(searchQuery) {
-    try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 8000);
-        const res = await fetch(
-            `https://html.duckduckgo.com/html/?q=${encodeURIComponent(searchQuery)}`,
-            {
-                signal: controller.signal,
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
-                }
-            }
-        );
-        clearTimeout(timeout);
-        if (!res.ok) throw new Error(`DuckDuckGo returned ${res.status}`);
-
-        const html = await res.text();
-        // DDG HTML: <a class="result__a" href="URL">TITLE</a>
-        const resultPattern = /class="result__a"[^>]*href="([^"]+)"[^>]*>([^<]+)</g;
-        const results = [...html.matchAll(resultPattern)];
-        
-        for (const match of results) {
-            let url = match[1];
-            let realTitle = match[2].trim().replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#x27;/g, "'").replace(/&quot;/g, '"');
-            // DDG sometimes wraps URLs in //duckduckgo.com/l/?uddg=...
-            if (url.includes('uddg=')) {
-                url = decodeURIComponent(url.split('uddg=')[1].split('&')[0]);
-            }
-            // Skip google/youtube/DDG internal links
-            if (!url.includes('google.com') && !url.includes('youtube.com') && !url.includes('duckduckgo.com')) {
-                // Extract the source/domain from the URL
-                let realSource = null;
-                try { realSource = new URL(url).hostname.replace('www.', ''); } catch {}
-                return { url, realTitle, realSource };
-            }
-        }
-    } catch (err) {
-        console.warn(`Article URL resolve failed for "${searchQuery}":`, err.message);
-    }
-    return { url: `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`, realTitle: null, realSource: null };
+function normalizeChannelName(channel) {
+    return String(channel || '')
+        .toLowerCase()
+        .replace(/^the\s+/, '')
+        .replace(/[^a-z0-9]/g, '');
 }
 
-/**
- * Resolve all article search queries in resource data to real article URLs + titles.
- */
-async function resolveArticleUrls(resourceData) {
-    if (!resourceData?.articles?.length) return resourceData;
+function buildSubscribedChannelMatcher(subscribedChannels = []) {
+    const idToOrder = new Map();
+    const nameToOrder = new Map();
 
-    const resolved = await Promise.all(
-        resourceData.articles.map(async (article) => {
-            const query = article.search_query || `${article.title || ''} ${article.source || ''}`.trim();
-            const result = await resolveArticleUrl(query);
-            return {
-                ...article,
-                url: result.url,
-                title: result.realTitle || article.title,       // Use real title if available
-                source: result.realSource || article.source,     // Use real source if available
-                search_query: query,
-            };
-        })
-    );
+    subscribedChannels.forEach((channel, index) => {
+        const order = index + 1;
+        if (channel.id && !idToOrder.has(channel.id)) idToOrder.set(channel.id, order);
 
-    return { ...resourceData, articles: resolved };
-}
-
-/**
- * Call Gemini with a prompt and return parsed JSON.
- * Uses responseMimeType for guaranteed structured output.
- */
-async function callGemini(prompt, retries = 2) {
-    const model = genAI.getGenerativeModel({
-        model: 'gemini-2.5-flash',
-        generationConfig: {
-            responseMimeType: 'application/json',
-            temperature: 0.7,
-        },
+        const normalizedName = normalizeChannelName(channel.title || channel);
+        if (normalizedName && !nameToOrder.has(normalizedName)) nameToOrder.set(normalizedName, order);
     });
 
+    return (channelTitle, channelId = null) => {
+        if (channelId && idToOrder.has(channelId)) return idToOrder.get(channelId);
+
+        const normalizedName = normalizeChannelName(channelTitle);
+        return nameToOrder.get(normalizedName) || null;
+    };
+}
+
+function getChannelKey(item) {
+    return item.snippet?.channelId || normalizeChannelName(item.snippet?.channelTitle);
+}
+
+function mapYouTubeSearchItem(item, searchQuery, index, fromSubscription = false, originalRank = index + 1) {
+    const description = decodeHtmlText(item.snippet?.description);
+
+    return {
+        id: `search-${index + 1}`,
+        display_rank: index + 1,
+        original_rank: originalRank,
+        youtube_rank: originalRank,
+        video_id: item.id.videoId,
+        url: `https://www.youtube.com/watch?v=${item.id.videoId}`,
+        title: decodeHtmlText(item.snippet?.title) || searchQuery,
+        channel: decodeHtmlText(item.snippet?.channelTitle) || 'YouTube',
+        channel_id: item.snippet?.channelId || null,
+        search_query: searchQuery,
+        description,
+        why_relevant: fromSubscription
+            ? `YouTube search result from one of your subscribed channels for "${searchQuery}"`
+            : `YouTube search result for "${searchQuery}"`,
+        suggested_section: null,
+        snippet_description: description,
+        skill_level: 'beginner | intermediate | advanced',
+        from_subscription: fromSubscription,
+        source_bucket: 'youtube_api_search',
+        priority_bucket: fromSubscription ? 'subscribed_channel_match' : 'youtube_search_rank',
+        match_confidence: fromSubscription ? 'youtube_api_subscribed_channel_match' : 'youtube_api_search_rank',
+        thumbnail_url: item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.default?.url || null,
+        published_at: item.snippet?.publishedAt || null,
+    };
+}
+
+async function searchYouTubeApiVideos(searchQuery, subscribedChannels = [], displayCount = YOUTUBE_DISPLAY_RESULT_COUNT) {
+    if (!process.env.YOUTUBE_API_KEY) {
+        console.warn('YOUTUBE_API_KEY is missing. Cannot fetch YouTube API search results.');
+        return [];
+    }
+
+    try {
+        const url = new URL('https://www.googleapis.com/youtube/v3/search');
+        url.searchParams.set('part', 'snippet');
+        url.searchParams.set('maxResults', String(YOUTUBE_SEARCH_CANDIDATE_COUNT));
+        url.searchParams.set('q', searchQuery);
+        url.searchParams.set('type', 'video');
+        url.searchParams.set('order', 'relevance');
+        url.searchParams.set('safeSearch', 'moderate');
+        url.searchParams.set('videoDuration', 'medium');
+        url.searchParams.set('videoEmbeddable', 'true');
+        url.searchParams.set('key', process.env.YOUTUBE_API_KEY);
+
+        const res = await fetch(url.toString());
+        if (!res.ok) {
+            const errorText = await res.text();
+            throw new Error(`YouTube API returned ${res.status}: ${errorText}`);
+        }
+
+        const data = await res.json();
+        const items = (data.items || [])
+            .filter(item => item.id?.videoId)
+            .map((item, index) => ({
+                item,
+                originalRank: index + 1,
+                fromSubscription: false,
+            }));
+        const isSubscribedChannel = buildSubscribedChannelMatcher(subscribedChannels);
+        const subscribedMatchesByChannel = new Map();
+        const regularMatches = [];
+
+        for (const candidate of items) {
+            candidate.subscriptionOrder = isSubscribedChannel(candidate.item.snippet?.channelTitle, candidate.item.snippet?.channelId);
+            candidate.fromSubscription = candidate.subscriptionOrder !== null;
+            if (candidate.fromSubscription) {
+                const channelKey = getChannelKey(candidate.item);
+                const existing = subscribedMatchesByChannel.get(channelKey);
+                if (!existing || candidate.originalRank < existing.originalRank) {
+                    subscribedMatchesByChannel.set(channelKey, candidate);
+                }
+            } else {
+                regularMatches.push(candidate);
+            }
+        }
+
+        const subscribedMatches = Array.from(subscribedMatchesByChannel.values());
+        subscribedMatches.sort((a, b) => (
+            a.originalRank - b.originalRank ||
+            a.subscriptionOrder - b.subscriptionOrder
+        ));
+
+        const selectedSubscribedMatches = subscribedMatches.slice(0, YOUTUBE_SUBSCRIBED_CHANNEL_DISPLAY_CAP);
+
+        return [...selectedSubscribedMatches, ...regularMatches]
+            .slice(0, displayCount)
+            .map((candidate, index) => mapYouTubeSearchItem(
+                candidate.item,
+                searchQuery,
+                index,
+                candidate.fromSubscription,
+                candidate.originalRank
+            ));
+    } catch (err) {
+        console.warn(`[YouTube API Search] Failed for "${searchQuery}":`, err.message);
+        return [];
+    }
+}
+
+async function searchSubscribedLocalVideos(searchQuery, userId, displayCount = 3) {
+    if (!userId || userId === 'anonymous') return [];
+
+    try {
+        const results = await searchLocalVideos(searchQuery, displayCount, userId);
+        return (results || [])
+            .filter(video => video.from_subscription)
+            .slice(0, displayCount)
+            .map((video, index) => ({
+                id: `local-subscription-${index + 1}`,
+                video_id: video.id,
+                url: `https://www.youtube.com/watch?v=${video.id}`,
+                title: video.title,
+                channel: video.channel_title || 'Subscribed Channel',
+                channel_id: video.channel_id || null,
+                search_query: searchQuery,
+                why_relevant: `Matched from your subscribed channels for "${searchQuery}"`,
+                suggested_section: 'core explanation',
+                snippet_description: `Review the parts that explain ${searchQuery}.`,
+                skill_level: 'beginner | intermediate | advanced',
+                from_subscription: true,
+                source_bucket: 'subscription_local_search',
+                match_confidence: 'local_subscription_semantic_match',
+                thumbnail_url: video.thumbnail_url || null,
+                published_at: video.published_at || null,
+            }));
+    } catch (err) {
+        console.warn(`[YouTube] Local subscription search failed for "${searchQuery}":`, err.message);
+        return [];
+    }
+}
+
+/**
+ * Fetch all YouTube subscriptions for a user (paginated) and cache in MongoDB.
+ * On cache hit, returns immediately without calling the YouTube API.
+ * On cache miss, paginates through ALL subscription pages (50/page) when a token is available.
+ */
+async function fetchAndCacheSubscriptions(userId, ytAccessToken) {
+    // 1. Check MongoDB cache first
+    try {
+        const cached = await UserSubscriptions.findOne({ userId });
+        if (cached && cached.channels.length > 0) {
+            console.log(`[YouTube] Using cached ${cached.totalCount} subscriptions for userId: ${userId}`);
+            return cached.channels;
+        }
+    } catch (dbErr) {
+        console.warn('[YouTube] Cache lookup failed:', dbErr.message);
+    }
+
+    if (!ytAccessToken) {
+        console.log(`[YouTube] No cached subscriptions and no OAuth token for userId: ${userId}. Skipping subscription prioritization.`);
+        return [];
+    }
+
+    // 2. Paginate through all YouTube subscriptions
+    const allChannels = [];
+    let nextPageToken = null;
+    let pageCount = 0;
+
+    console.log(`[YouTube] Fetching all subscriptions for userId: ${userId}...`);
+    try {
+        do {
+            const url = new URL('https://www.googleapis.com/youtube/v3/subscriptions');
+            url.searchParams.set('part', 'snippet');
+            url.searchParams.set('mine', 'true');
+            url.searchParams.set('maxResults', '50');
+            url.searchParams.set('order', 'alphabetical');
+            if (nextPageToken) url.searchParams.set('pageToken', nextPageToken);
+
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 10000);
+
+            const res = await fetch(url.toString(), {
+                signal: controller.signal,
+                headers: { Authorization: `Bearer ${ytAccessToken}` },
+            });
+            clearTimeout(timeout);
+
+            if (!res.ok) {
+                const errBody = await res.json().catch(() => ({}));
+                console.warn(`[YouTube] Subscriptions API error (page ${pageCount + 1}):`, res.status, errBody?.error?.message);
+                break;
+            }
+
+            const data = await res.json();
+            pageCount++;
+
+            for (const item of (data.items || [])) {
+                allChannels.push({
+                    id: item.snippet.resourceId.channelId,
+                    title: item.snippet.title || '',
+                    description: item.snippet.description || '',
+                });
+            }
+
+            nextPageToken = data.nextPageToken || null;
+            console.log(`[YouTube] Page ${pageCount}: fetched ${data.items?.length || 0} channels (total so far: ${allChannels.length})`);
+        } while (nextPageToken);
+    } catch (fetchErr) {
+        console.warn('[YouTube] Subscription fetch failed mid-pagination:', fetchErr.message);
+    }
+
+    console.log(`[YouTube] Fetched ${allChannels.length} total subscriptions across ${pageCount} pages.`);
+
+    // 3. Store in MongoDB (upsert — replaces any existing stale doc)
+    if (allChannels.length > 0) {
+        try {
+            await UserSubscriptions.findOneAndUpdate(
+                { userId },
+                { channels: allChannels, totalCount: allChannels.length, fetchedAt: new Date() },
+                { upsert: true, new: true }
+            );
+            console.log(`[YouTube] Cached ${allChannels.length} subscriptions for userId: ${userId} (${SUBSCRIPTION_CACHE_TTL_DAYS}-day TTL).`);
+        } catch (saveErr) {
+            console.warn('[YouTube] Failed to cache subscriptions:', saveErr.message);
+        }
+    }
+
+    return allChannels;
+}
+
+/**
+ * Attempt to repair malformed JSON from LLM output.
+ * Handles: unterminated strings, missing closing brackets/braces, trailing commas.
+ */
+function repairJSON(text) {
+    // Remove markdown fences
+    text = text.replace(/```json|```/g, '').trim();
+
+    // Try parsing as-is first
+    try { return JSON.parse(text); } catch {}
+
+    // Fix trailing commas before } or ]
+    let fixed = text.replace(/,\s*([\]}])/g, '$1');
+
+    // Try again
+    try { return JSON.parse(fixed); } catch {}
+
+    // Count open/close brackets and braces to find what's missing
+    let openBraces = 0, openBrackets = 0, inString = false, escaped = false;
+    for (let i = 0; i < fixed.length; i++) {
+        const ch = fixed[i];
+        if (escaped) { escaped = false; continue; }
+        if (ch === '\\') { escaped = true; continue; }
+        if (ch === '"') { inString = !inString; continue; }
+        if (inString) continue;
+        if (ch === '{') openBraces++;
+        if (ch === '}') openBraces--;
+        if (ch === '[') openBrackets++;
+        if (ch === ']') openBrackets--;
+    }
+
+    // If we ended inside a string, close it
+    if (inString) fixed += '"';
+
+    // Remove any trailing comma
+    fixed = fixed.replace(/,\s*$/, '');
+
+    // Close any open brackets/braces
+    while (openBrackets > 0) { fixed += ']'; openBrackets--; }
+    while (openBraces > 0) { fixed += '}'; openBraces--; }
+
+    try { return JSON.parse(fixed); } catch {}
+
+    // Last resort: truncate to last valid closing brace/bracket and try
+    const lastBrace = fixed.lastIndexOf('}');
+    const lastBracket = fixed.lastIndexOf(']');
+    const cutPoint = Math.max(lastBrace, lastBracket);
+    if (cutPoint > 0) {
+        const truncated = fixed.substring(0, cutPoint + 1);
+        try { return JSON.parse(truncated); } catch {}
+    }
+
+    throw new Error('Unable to parse or repair JSON from model output');
+}
+
+/**
+ * Scrape authentic title and image from redirect URLs.
+ */
+async function fetchLinkPreview(redirectUrl) {
+    try {
+        const response = await fetch(redirectUrl, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+            signal: AbortSignal.timeout(4000) // 4 second timeout
+        });
+        
+        if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
+        
+        const html = await response.text();
+        
+        const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+        const title = titleMatch ? titleMatch[1].trim() : null;
+        
+        const ogImageMatch = html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i);
+        const image = ogImageMatch ? ogImageMatch[1].trim() : null;
+        
+        return { title, image, url: response.url, failed: false };
+    } catch (err) {
+        return { title: null, image: null, url: null, failed: true };
+    }
+}
+
+/**
+ * Call Gemini API with a prompt and return parsed JSON.
+ * Uses @google/genai SDK for tracing compatibility.
+ */
+async function callGemini(prompt, retries = 2, useSearch = false) {
     for (let attempt = 0; attempt <= retries; attempt++) {
         try {
-            const result = await model.generateContent(prompt);
-            let text = result.response.text();
-            text = text.replace(/```json|```/g, '').trim();
-            return JSON.parse(text);
+            const config = {
+                temperature: 0.4,
+                maxOutputTokens: 8192,
+                systemInstruction: 'You MUST respond with valid, complete JSON only. No markdown, no commentary. Ensure all strings are properly terminated and all brackets/braces are closed.',
+            };
+            if (useSearch) {
+                config.tools = [{ googleSearch: {} }];
+            } else {
+                config.responseMimeType = 'application/json';
+            }
+
+            const response = await ai.models.generateContent({
+                model: process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash-lite',
+                contents: prompt,
+                config,
+            });
+
+            let text = response.text || '';
+            if (useSearch) {
+                const jsonMatch = text.match(/```(?:json)?\n?([\s\S]*?)```/);
+                if (jsonMatch) text = jsonMatch[1];
+            }
+            
+            return repairJSON(text);
         } catch (err) {
             if (attempt === retries) throw err;
-            console.warn(`Gemini attempt ${attempt + 1} failed, retrying...`);
+            console.warn(`Gemini API attempt ${attempt + 1} failed, retrying...`, err.message);
+            await new Promise(r => setTimeout(r, 1000 * (attempt + 1))); // backoff
         }
     }
 }
+
+/**
+ * Call Gemini Search to strictly extract vertexaisearch grounding URLs.
+ * Uses the generic prompt approach to guarantee exact search entry points.
+ */
+async function searchArticles(topic, node_label, userId) {
+    try {
+        let prefsString = "";
+        if (userId) {
+            const prefs = await UserPreferences.findOne({ userId });
+            if (prefs) {
+                if (prefs.preferredDomains?.length > 0) {
+                    prefsString += ` Prioritize results from: ${prefs.preferredDomains.join(', ')}.`;
+                }
+                if (prefs.deprioritizedDomains?.length > 0) {
+                    prefsString += ` Exclude results from: ${prefs.deprioritizedDomains.join(', ')}.`;
+                }
+            }
+        }
+
+        const query = `${topic} ${node_label}`;
+        const response = await ai.models.generateContent({
+            model: process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash-lite',
+            contents: `Perform Google search for '${query}'${prefsString}`,
+            config: {
+                temperature: 0.2,
+                tools: [{ googleSearch: {} }]
+            }
+        });
+
+        const meta = response.candidates?.[0]?.groundingMetadata;
+        const chunks = meta?.groundingChunks || [];
+        
+        const articles = [];
+        let idCounter = 1;
+        
+        // Execute fetchLinkPreview in parallel for all URLs
+        const previewPromises = chunks.map(async (chunk) => {
+            if (chunk.web && chunk.web.uri) {
+                const preview = await fetchLinkPreview(chunk.web.uri);
+                if (!preview.failed && preview.url) {
+                    return {
+                        id: 0, // Assigned later
+                        source: preview.title ? (chunk.web.title || preview.title.split('-')[0].trim()) : (chunk.web.title || 'Web Resource'),
+                        title: preview.title || 'Article',
+                        url: preview.url,
+                        image: preview.image || null,
+                        why_relevant: `Found via Google Search for ${query}`,
+                        estimated_read_time: "5 min"
+                    };
+                }
+            }
+            return null;
+        });
+
+        const results = await Promise.all(previewPromises);
+        
+        for (const res of results) {
+            if (res) {
+                res.id = idCounter++;
+                articles.push(res);
+            }
+        }
+        
+        return articles;
+    } catch (err) {
+        console.warn('[SearchArticles] Failed to fetch articles:', err.message);
+        return [];
+    }
+}
+
+// ─── COMMENTED OUT: Gemma/Ollama local LLM (kept for reference) ─────────────
+// /**
+//  * Call local Gemma 4 12B model served by Ollama with a prompt and return parsed JSON.
+//  * Uses OpenAI SDK so Traceloop auto-instruments LLM inputs, outputs, latency, and tokens.
+//  */
+// async function callGemini(prompt, retries = 2) {
+//     const OLLAMA_BASE_URL = (process.env.OLLAMA_BASE_URL || 'http://localhost:11434').trim();
+//     const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma4:12b';
+//
+//     const openai = new OpenAI({
+//         baseURL: `${OLLAMA_BASE_URL}/v1`,
+//         apiKey: 'ollama', // Required by SDK but ignored by Ollama
+//         defaultHeaders: {
+//             'Origin': 'http://localhost:11434',
+//             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+//             'ngrok-skip-browser-warning': 'true'
+//         }
+//     });
+//
+//     for (let attempt = 0; attempt <= retries; attempt++) {
+//         try {
+//             const completion = await openai.chat.completions.create({
+//                 model: OLLAMA_MODEL,
+//                 messages: [
+//                     { role: 'system', content: 'You MUST respond with valid, complete JSON only. No markdown, no commentary. Ensure all strings are properly terminated and all brackets/braces are closed.' },
+//                     { role: 'user', content: prompt }
+//                 ],
+//                 response_format: { type: 'json_object' },
+//                 temperature: 0.4,
+//                 max_tokens: 8192
+//             }, { timeout: 120000 }); // 2 min timeout
+//
+//             const text = completion.choices?.[0]?.message?.content || '';
+//             return repairJSON(text);
+//         } catch (err) {
+//             if (attempt === retries) throw err;
+//             console.warn(`Ollama attempt ${attempt + 1} failed, retrying...`, err.message);
+//         }
+//     }
+// }
 
 // ─── Health Check ───────────────────────────────────────────────────────────
 
@@ -352,7 +739,7 @@ Mark 1-2 nodes as "recommended_next" — these are what the learner should focus
 
     try {
         console.log(`[${new Date().toISOString()}] Map generation for: "${topic}"`);
-        
+
         // RAG: Retrieve categorized document context
         let sourceContextStr = '';
         let personalContextStr = '';
@@ -365,7 +752,7 @@ Mark 1-2 nodes as "recommended_next" — these are what the learner should focus
                 const results = await retrieveCategorizedContext(userId, topic, 15);
                 sourceMaterials = results.sourceMaterials;
                 contextMaterials = results.contextMaterials;
-                
+
                 if (sourceMaterials.length > 0) {
                     sourceContextStr = '\n\n### Source Material Context (CRITICAL: Use this to define the strict curriculum structure and chapters)\n';
                     sourceMaterials.forEach(m => sourceContextStr += `[From "${m.filename}"]: ${m.content}\n`);
@@ -395,7 +782,7 @@ ${personalContextStr ? '  - Use Personal Context to identify gaps (e.g. from mis
 
         const json = await callGemini(fullPrompt);
         console.log(`[${new Date().toISOString()}] Map generated with ${json.nodes?.length} nodes.`);
-        
+
         // Attach retrieval context for transparency
         res.json({
             ...json,
@@ -460,7 +847,7 @@ Generate exactly 6 recommendations ordered by priority. At least 2 must be "high
 
     try {
         console.log(`[${new Date().toISOString()}] Recommendations for: "${topic}"`);
-        
+
         // RAG: Retrieve relevant past context
         let ragContext = '';
         let ragResults = null;
@@ -479,12 +866,12 @@ Generate exactly 6 recommendations ordered by priority. At least 2 must be "high
         const fullPrompt = ragContext ? prompt + '\n' + ragContext : prompt;
         const json = await callGemini(fullPrompt);
         console.log(`[${new Date().toISOString()}] Generated ${json.recommendations?.length} recommendations.`);
-        
+
         // Auto-store session context in Pinecone (non-blocking)
         if (process.env.PINECONE_API_KEY) {
-            storeSessionContext(userId, { topic, skill_level, type: 'recommendations', node_label: 'overview', summary: `Generated ${json.recommendations?.length} recommendations for ${topic}` }).catch(() => {});
+            storeSessionContext(userId, { topic, skill_level, type: 'recommendations', node_label: 'overview', summary: `Generated ${json.recommendations?.length} recommendations for ${topic}` }).catch(() => { });
         }
-        
+
         // Include debug context in response for frontend transparency
         const _debug_context = {
             source: (ragResults?.documents || []).filter(d => d.category === 'source').map(m => ({ filename: m.filename, content: m.content })),
@@ -499,15 +886,16 @@ Generate exactly 6 recommendations ordered by priority. At least 2 must be "high
     }
 });
 
-// ─── 4. Generate Practice Scenarios ─────────────────────────────────────────
+// ─── 4+5. MERGED: Generate Node Data (Practice + Resources in one call) ─────
 
-app.post('/api/generate-practice', async (req, res) => {
-    const { topic, node_label, skill_level, key_concepts, userId } = req.body;
+app.post('/api/generate-node-data', async (req, res) => {
+    const { topic, node_label, skill_level, key_concepts, userId, ytAccessToken } = req.body;
 
     if (!topic || !node_label) {
         return res.status(400).json({ error: 'Topic and node_label are required' });
     }
 
+    // ── SINGLE Pinecone RAG lookup (shared by both practice & resources) ─────
     let referenceContext = '';
     let sourceMaterials = [];
     let contextMaterials = [];
@@ -516,7 +904,7 @@ app.post('/api/generate-practice', async (req, res) => {
             const results = await retrieveCategorizedContext(userId, `${topic} ${node_label}`, 5);
             sourceMaterials = results.sourceMaterials;
             contextMaterials = results.contextMaterials;
-            
+
             if (sourceMaterials.length > 0 || contextMaterials.length > 0) {
                 referenceContext = '\n\n### STRICT REFERENCE MATERIAL (Only use these concepts/terms):\n';
                 [...sourceMaterials, ...contextMaterials].forEach(m => {
@@ -524,11 +912,12 @@ app.post('/api/generate-practice', async (req, res) => {
                 });
             }
         } catch (e) {
-            console.warn("RAG retrieval for practice failed:", e.message);
+            console.warn("RAG retrieval for node data failed:", e.message);
         }
     }
 
-    const prompt = `${SYSTEM_PERSONA}
+    // ── Build PRACTICE prompt ────────────────────────────────────────────────
+    const practicePrompt = `${SYSTEM_PERSONA}
 ${referenceContext}
 
 The learner is studying "${topic}" and is currently on the sub-topic: "${node_label}"
@@ -587,23 +976,116 @@ Return valid JSON matching this exact schema:
 
 Generate exactly 5 scenarios: 2 multiple_choice, 2 scenario, 1 code_challenge. Ensure they progress in difficulty.`;
 
+    // ── Build RESOURCES prompt ───────────────────────────────────────────────
+    const resourceRefContext = (sourceMaterials.length > 0 || contextMaterials.length > 0)
+        ? '\n\n### REFERENCE MATERIAL FROM UPLOADED DOCUMENTS (Use this to find relevant external resources):\n' +
+          [...sourceMaterials, ...contextMaterials].map(m => `- [${m.filename}]: ${m.content}`).join('\n')
+        : '';
+
+    const resourcePrompt = `${SYSTEM_PERSONA}
+${resourceRefContext}
+
+The learner is studying "${topic}", specifically the sub-topic: "${node_label}"
+Skill level: "${skill_level || 'beginner'}"
+
+### CRITICAL DOMAIN RELEVANCE GUARD
+The following snippets were retrieved for the topic: "${topic}" and sub-topic: "${node_label}". 
+- **STRICT MISMATCH CHECK**: If the snippets are about a very specific application (like "Video Summarization") while the user is learning a broad topic (like "Machine Learning"), you **MUST IGNORE** them.
+- **AUTHORITY**: Only use this material if it is a DIRECT and NECESSARY match for "${node_label}". Otherwise, provide standard high-quality resources for "${topic}".
+- If they ARE relevant:
+  - Curate highly specific resources that complement the user's provided material.
+
+Think step-by-step:
+1. What official documentation, tutorials, or books are most relevant?
+2. Which books would support this sub-topic at the learner's skill level?
+3. Do NOT generate YouTube videos. The backend retrieves YouTube videos separately from real search APIs.
+
+Return valid JSON matching this exact schema:
+{
+    "resources_for": "${node_label}",
+    "books": [
+        {
+            "title": "Book title",
+            "author": "Author name",
+            "relevant_chapter": "Chapter or section most relevant",
+            "why_relevant": "Why this book helps"
+        }
+    ]
+}
+
+Provide 2 books. Do not include YouTube video fields.`;
+
+    // ── YouTube Subscription Context (for resources only) ────────────────────
+    let subscribedChannels = [];
+
+    if (userId && userId !== 'anonymous' && process.env.MONGODB_URI) {
+        try {
+            const allChannels = await fetchAndCacheSubscriptions(userId, ytAccessToken);
+            subscribedChannels = allChannels.map(ch => ({ id: ch.id, title: ch.title }));
+        } catch (subErr) {
+            console.warn('[YouTube] Subscription enrichment failed (non-fatal):', subErr.message);
+        }
+    }
+
+    // ── Fire LLM and deterministic YouTube lookups in parallel ────────────────
     try {
-        console.log(`[${new Date().toISOString()}] Practice for: "${node_label}"`);
-        const json = await callGemini(prompt);
-        console.log(`[${new Date().toISOString()}] Generated ${json.scenarios?.length} practice scenarios.`);
-        
-        // Include debug context
+        const videoSearchQuery = buildYouTubeSearchQuery(topic, node_label, key_concepts);
+        console.log(`[${new Date().toISOString()}] Node data for: "${node_label}" (1 RAG lookup, parallel practice/resources/search)`);
+
+        const [practiceJson, resourceJson, articlesList, subscriptionVideos, searchVideos] = await Promise.all([
+            callGemini(practicePrompt),
+            callGemini(resourcePrompt), // JSON format, no YouTube videos
+            searchArticles(topic, node_label, userId), // Text format, YES Search Grounding
+            searchSubscribedLocalVideos(videoSearchQuery, userId, 3),
+            searchYouTubeApiVideos(videoSearchQuery, subscribedChannels, 8)
+        ]);
+
+        console.log(`[${new Date().toISOString()}] Generated ${practiceJson.scenarios?.length} practice scenarios.`);
+        console.log(`[${new Date().toISOString()}] Selected YouTube videos: ${subscriptionVideos.length} local subscription, ${searchVideos.filter(v => v.from_subscription).length} subscribed-channel API matches, ${searchVideos.length} API total.`);
+        console.log(`[${new Date().toISOString()}] Found ${articlesList?.length} articles via Grounding.`);
+
+        const actualArticles = [];
+
+        for (const article of (articlesList || [])) {
+            if (!article.url || (!article.url.includes('youtube.com') && !article.url.includes('youtu.be'))) {
+                actualArticles.push(article);
+            }
+        }
+
+        // Inject the cleanly filtered articles into the JSON
+        resourceJson.articles = actualArticles;
+
+        resourceJson.subscription_videos = subscriptionVideos
+            .map((video, i) => ({ ...normalizeVideoSuggestion(video), id: `subscription-${i + 1}` }));
+        resourceJson.youtube_videos = searchVideos
+            .map((video, i) => ({ ...normalizeVideoSuggestion(video), id: `search-${i + 1}` }));
+        resourceJson.all_youtube_videos = [...resourceJson.subscription_videos, ...resourceJson.youtube_videos]
+            .map((video, i) => ({ ...video, display_order: i + 1 }));
+        delete resourceJson.subscribed_videos;
+
+        const verifiedSubscriptionCount = resourceJson.all_youtube_videos.filter(v => v.from_subscription).length;
+        console.log(`[YouTube] Displaying ${subscriptionVideos.length} local subscription videos plus ${searchVideos.length} API search videos (${verifiedSubscriptionCount} subscription-related total).`);
+
+        // Debug context
         const _debug_context = {
             source: sourceMaterials.map(m => ({ filename: m.filename, content: m.content })),
-            personal: contextMaterials.map(m => ({ filename: m.filename, content: m.content }))
+            personal: contextMaterials.map(m => ({ filename: m.filename, content: m.content })),
+            subscribed_channels: subscribedChannels.map(ch => ch.title),
         };
 
-        res.json({ ...json, _debug_context });
+        res.json({
+            practice: { ...practiceJson, _debug_context },
+            resources: { ...resourceJson, _debug_context }
+        });
     } catch (error) {
-        console.error(`[${new Date().toISOString()}] Practice Error:`, error.message);
-        res.status(500).json({ error: 'Failed to generate practice', details: error.message });
+        console.error(`[${new Date().toISOString()}] Node Data Error:`, error.message);
+        res.status(500).json({ error: 'Failed to generate node data', details: error.message });
     }
 });
+
+
+
+
 app.post('/api/generate-quiz', async (req, res) => {
     const { topic, skill_level, node_label } = req.body;
 
@@ -650,126 +1132,6 @@ Ensure there are exactly 5 objects in the "levels" array, progressing from funda
     }
 });
 
-// ─── 5. Generate External Resources (YouTube Snippets + Articles) ──────────
-
-app.post('/api/generate-resources', async (req, res) => {
-    const { topic, node_label, skill_level, userId } = req.body;
-
-    if (!topic || !node_label) {
-        return res.status(400).json({ error: 'Topic and node_label are required' });
-    }
-
-    let referenceContext = '';
-    let sourceMaterials = [];
-    let contextMaterials = [];
-    if (userId && process.env.PINECONE_API_KEY) {
-        try {
-            const results = await retrieveCategorizedContext(userId, `${topic} ${node_label}`, 5);
-            sourceMaterials = results.sourceMaterials;
-            contextMaterials = results.contextMaterials;
-
-            if (sourceMaterials.length > 0 || contextMaterials.length > 0) {
-                referenceContext = '\n\n### REFERENCE MATERIAL FROM UPLOADED DOCUMENTS (Use this to find relevant external resources):\n';
-                [...sourceMaterials, ...contextMaterials].forEach(m => {
-                    referenceContext += `- [${m.filename}]: ${m.content}\n`;
-                });
-            }
-        } catch (e) {
-            console.warn("RAG retrieval for resources failed:", e.message);
-        }
-    }
-
-    const prompt = `${SYSTEM_PERSONA}
-${referenceContext}
-
-The learner is studying "${topic}", specifically the sub-topic: "${node_label}"
-Skill level: "${skill_level || 'beginner'}"
-
-### CRITICAL DOMAIN RELEVANCE GUARD
-The following snippets were retrieved for the topic: "${topic}" and sub-topic: "${node_label}". 
-- **STRICT MISMATCH CHECK**: If the snippets are about a very specific application (like "Video Summarization") while the user is learning a broad topic (like "Machine Learning"), you **MUST IGNORE** them.
-- **AUTHORITY**: Only use this material if it is a DIRECT and NECESSARY match for "${node_label}". Otherwise, provide standard high-quality resources for "${topic}".
-- If they ARE relevant:
-  - Curate highly specific resources that complement the user's provided material.
-
-CRITICAL RULES FOR YOUTUBE:
-- Do NOT provide direct YouTube video URLs — they are often wrong.
-- Instead, for each video provide a "search_query" that is VERY SPECIFIC: include the exact channel name AND a distinctive phrase from the video title. Example: "freeCodeCamp reinforcement learning full course 2024" or "3Blue1Brown neural networks chapter 1".
-- The search query should be specific enough that the FIRST YouTube search result is the correct video.
-- Provide estimated timestamp ranges for the most relevant section.
-
-CRITICAL RULES FOR ARTICLES:
-- Do NOT provide direct article URLs — they are often wrong and return 404 errors.
-- Instead, provide the article title, the source website name, and a specific search_query that will find the actual article.
-- Example: source "MDN Web Docs", search_query "MDN Array.prototype.map JavaScript"
-
-Think step-by-step:
-1. What are the best-known YouTube videos for this topic from channels like 3Blue1Brown, Fireship, Traversy Media, freeCodeCamp, Sentdex, Tech With Tim, The Coding Train, etc.?
-2. What specific timestamp section covers this sub-topic?
-3. What official documentation or tutorial articles are most relevant?
-
-Return valid JSON matching this exact schema:
-{
-    "resources_for": "${node_label}",
-    "youtube_videos": [
-        {
-            "id": 1,
-            "search_query": "very specific YouTube search query including channel name and video title keywords",
-            "channel": "Exact channel name",
-            "title": "Exact or near-exact video title",
-            "why_relevant": "Why this video helps with this specific sub-topic",
-            "snippet_timestamp": "3:24 - 7:15",
-            "snippet_description": "What is covered in this specific timestamp range",
-            "skill_level": "beginner | intermediate | advanced"
-        }
-    ],
-    "articles": [
-        {
-            "id": 1,
-            "source": "Name of the site (e.g., MDN Web Docs, Official React Docs, GeeksforGeeks)",
-            "search_query": "Specific search query to find this article on Google",
-            "title": "Article or doc page title",
-            "why_relevant": "How this article helps",
-            "key_takeaway": "The one thing to learn from this resource",
-            "estimated_read_time": "8 min"
-        }
-    ],
-    "books": [
-        {
-            "title": "Book title",
-            "author": "Author name",
-            "relevant_chapter": "Chapter or section most relevant",
-            "why_relevant": "Why this book helps"
-        }
-    ]
-}
-
-Provide exactly 4 YouTube videos, 3 articles, and 2 books.`;
-
-    try {
-        console.log(`[${new Date().toISOString()}] Resources for: "${node_label}"`);
-        const json = await callGemini(prompt);
-        console.log(`[${new Date().toISOString()}] Generated resources: ${json.youtube_videos?.length} videos, ${json.articles?.length} articles.`);
-
-        // Resolve YouTube + Article search queries to real URLs (in parallel)
-        console.log(`[${new Date().toISOString()}] Resolving resource URLs...`);
-        const withYouTube = await resolveYouTubeUrls(json);
-        const withArticles = await resolveArticleUrls(withYouTube);
-        console.log(`[${new Date().toISOString()}] All resource URLs resolved.`);
-        
-        // Include debug context
-        const _debug_context = {
-            source: sourceMaterials.map(m => ({ filename: m.filename, content: m.content })),
-            personal: contextMaterials.map(m => ({ filename: m.filename, content: m.content }))
-        };
-
-        res.json({ ...withArticles, _debug_context });
-    } catch (error) {
-        console.error(`[${new Date().toISOString()}] Resources Error:`, error.message);
-        res.status(500).json({ error: 'Failed to generate resources', details: error.message });
-    }
-});
-
 // ─── 6. Save & Fetch Quests (History) ───────────────────────────────────────
 
 app.post('/api/save-quest', async (req, res) => {
@@ -811,7 +1173,42 @@ app.delete('/api/quest/:id', async (req, res) => {
     }
 });
 
-// ─── 7. File Upload & Document Management ──────────────────────────────────
+// ── Domain Preferences Endpoints ──────────────────────────────────────────
+
+app.get('/api/user-preferences/:userId', async (req, res) => {
+    try {
+        const prefs = await UserPreferences.findOne({ userId: req.params.userId });
+        if (!prefs) {
+            return res.json({ preferredDomains: [], deprioritizedDomains: [] });
+        }
+        res.json(prefs);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/user-preferences', async (req, res) => {
+    try {
+        const { userId, preferredDomains, deprioritizedDomains } = req.body;
+        if (!userId) return res.status(400).json({ error: 'userId is required' });
+
+        const prefs = await UserPreferences.findOneAndUpdate(
+            { userId },
+            { 
+                userId, 
+                preferredDomains: preferredDomains || [], 
+                deprioritizedDomains: deprioritizedDomains || [],
+                updatedAt: new Date()
+            },
+            { upsert: true, new: true }
+        );
+        res.json(prefs);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ── RAG / Pinecone Document Management ────────────────────────────────────
 
 app.post('/api/upload-document', upload.single('file'), async (req, res) => {
     const { userId, category = 'source' } = req.body;
@@ -872,7 +1269,7 @@ app.post('/api/upload-document', upload.single('file'), async (req, res) => {
         console.error(`[${new Date().toISOString()}] Upload Error:`, err.message);
         if (doc) {
             doc.status = 'failed';
-            await doc.save().catch(() => {});
+            await doc.save().catch(() => { });
         }
         res.status(500).json({ error: 'Failed to process document', details: err.message });
     }
@@ -897,10 +1294,117 @@ app.delete('/api/document/:id', async (req, res) => {
     }
 });
 
+// ─── Debug: YouTube Subscription Inspection ─────────────────────────────────
+
+// GET /api/debug-subscriptions/:userId
+// Returns what is currently cached in MongoDB for this user.
+app.get('/api/debug-subscriptions/:userId', async (req, res) => {
+    try {
+        const doc = await UserSubscriptions.findOne({ userId: req.params.userId });
+        if (!doc) {
+            return res.json({ cached: false, message: 'No subscription cache found for this userId.' });
+        }
+        res.json({
+            cached: true,
+            userId: doc.userId,
+            totalCount: doc.totalCount,
+            fetchedAt: doc.fetchedAt,
+            expiresAt: new Date(new Date(doc.fetchedAt).getTime() + SUBSCRIPTION_CACHE_TTL_MS),
+            sample: doc.channels.slice(0, 10), // first 10 channels as a preview
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST /api/debug-yt-token
+// Body: { ytAccessToken }  — tests if the token works against YouTube API.
+app.post('/api/debug-yt-token', async (req, res) => {
+    const { ytAccessToken } = req.body;
+    if (!ytAccessToken) return res.status(400).json({ error: 'ytAccessToken required' });
+
+    try {
+        const ytRes = await fetch(
+            'https://www.googleapis.com/youtube/v3/subscriptions?part=snippet&mine=true&maxResults=3',
+            { headers: { Authorization: `Bearer ${ytAccessToken}` } }
+        );
+        const data = await ytRes.json();
+        if (!ytRes.ok) {
+            return res.status(ytRes.status).json({ youtubeError: data?.error });
+        }
+        res.json({
+            ok: true,
+            totalResults: data.pageInfo?.totalResults,
+            sample: (data.items || []).map(i => ({
+                channel: i.snippet.title,
+                description: i.snippet.description?.slice(0, 80),
+            })),
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ─── Supabase YouTube Discovery APIs ────────────────────────────────────────
+
+// POST /api/youtube/sync-subscriptions
+// Fetches the user's YouTube subscriptions and adds channels to the Supabase DB
+app.post('/api/youtube/sync-subscriptions', async (req, res) => {
+    const { ytAccessToken, userId } = req.body;
+    if (!ytAccessToken || !userId) return res.status(400).json({ error: 'ytAccessToken and userId required' });
+
+    try {
+        // Check if user has synced within the subscription cache window
+        const cached = await UserSubscriptions.findOne({ userId });
+        if (cached && cached.fetchedAt) {
+            if (Date.now() - new Date(cached.fetchedAt).getTime() < SUBSCRIPTION_CACHE_TTL_MS) {
+                console.log(`[Sync] User ${userId} already synced within the last ${SUBSCRIPTION_CACHE_TTL_DAYS} days. Skipping.`);
+                return res.json({ success: true, skipped: true, count: cached.totalCount });
+            }
+        }
+
+        const channels = await syncUserChannels(userId, ytAccessToken);
+        
+        // Update the cache time in MongoDB so they aren't synced again for 30 days
+        await UserSubscriptions.findOneAndUpdate(
+            { userId },
+            { 
+                userId, 
+                channels: channels.map(c => ({ id: c.id, title: c.title, description: c.description })),
+                totalCount: channels.length,
+                fetchedAt: new Date()
+            },
+            { upsert: true, new: true }
+        );
+
+        res.json({ success: true, count: channels.length, channels: channels.slice(0, 5) });
+    } catch (err) {
+        console.error('[Supabase Sync Error]:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// GET /api/youtube/search
+// Searches for a semantic topic strictly against the local Supabase DB
+app.get('/api/youtube/search', async (req, res) => {
+    const { q, limit, userId } = req.query;
+    if (!q) return res.status(400).json({ error: 'Query parameter q is required' });
+
+    try {
+        const results = await searchLocalVideos(q, parseInt(limit) || 5, userId);
+        res.json({ results });
+    } catch (err) {
+        console.error('[Supabase Search Error]:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ─── Start Server ───────────────────────────────────────────────────────────
 
 app.listen(PORT, () => {
     console.log(`QuestMap API running on port ${PORT}`);
+    // Start background YouTube RSS synchronization job
+    startCron();
 });
 
 module.exports = app;

@@ -1,14 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, FileText, X, CheckCircle, AlertCircle, Loader2, File, Trash2 } from 'lucide-react';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001';
-
-const ACCEPTED_TYPES = {
-    'application/pdf': 'PDF',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'DOCX',
-    'text/plain': 'TXT',
-};
+import { Upload, X, CheckCircle, AlertCircle, Loader2, Trash2 } from 'lucide-react';
+import { API_BASE } from '../config/api';
 
 const FILE_ICONS = {
     'application/pdf': '📄',
@@ -49,7 +42,7 @@ const DocumentUpload = ({ userId, documents = [], onDocumentsChange }) => {
 
             setUploadProgress('Processing document...');
 
-            const res = await fetch(`${API_BASE}/api/upload-document`, {
+            const res = await fetch(`${API_BASE}/upload-document`, {
                 method: 'POST',
                 body: formData,
             });
@@ -73,11 +66,11 @@ const DocumentUpload = ({ userId, documents = [], onDocumentsChange }) => {
         } finally {
             setUploading(false);
         }
-    }, [userId, onDocumentsChange]);
+    }, [userId, category, onDocumentsChange]);
 
     const handleDelete = async (docId) => {
         try {
-            await fetch(`${API_BASE}/api/document/${docId}`, { method: 'DELETE' });
+            await fetch(`${API_BASE}/document/${docId}`, { method: 'DELETE' });
             if (onDocumentsChange) onDocumentsChange();
         } catch {
             setError('Failed to delete document.');

@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 
 const STATUS_COLORS = {
     completed: { bg: '#059669', border: '#34d399', text: '#ecfdf5', glow: 'rgba(52,211,153,0.3)' },
@@ -54,8 +54,6 @@ function drawArrow(ctx, fromX, fromY, toX, toY, relationship) {
     const dx = toX - fromX;
     const dy = toY - fromY;
     const angle = Math.atan2(dy, dx);
-    const len = Math.sqrt(dx * dx + dy * dy);
-
     // Shorten by node radius
     const nodeR = 50;
     const startX = fromX + Math.cos(angle) * nodeR;
@@ -94,16 +92,12 @@ function drawArrow(ctx, fromX, fromY, toX, toY, relationship) {
 const KnowledgeMap = ({ mapData, selectedNode, onNodeSelect }) => {
     const canvasRef = useRef(null);
     const containerRef = useRef(null);
-    const [positions, setPositions] = useState([]);
     const [hoveredNode, setHoveredNode] = useState(null);
     const [dimensions, setDimensions] = useState({ width: 800, height: 500 });
-
-    // Compute positions when mapData or dimensions change
-    useEffect(() => {
-        if (mapData?.nodes) {
-            setPositions(layoutNodes(mapData.nodes, dimensions.width, dimensions.height));
-        }
-    }, [mapData, dimensions]);
+    const positions = useMemo(
+        () => (mapData?.nodes ? layoutNodes(mapData.nodes, dimensions.width, dimensions.height) : []),
+        [mapData, dimensions]
+    );
 
     // Observe container size
     useEffect(() => {

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle, Circle, Play, Lock, Clock, ChevronDown, ChevronRight, Sparkles, Target } from 'lucide-react';
 
