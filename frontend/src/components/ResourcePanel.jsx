@@ -63,24 +63,7 @@ const TrustBadge = ({ trustTier, trustScore }) => {
     );
 };
 
-const ResourceGroundingSummary = ({ coverage }) => {
-    if (!coverage) return null;
 
-    const tone = coverage.coverage_level === 'high'
-        ? 'border-blue-500/20 bg-blue-500/10 text-blue-300'
-        : coverage.coverage_level === 'medium'
-            ? 'border-amber-500/20 bg-amber-500/10 text-amber-300'
-            : 'border-gray-600/30 bg-gray-800/40 text-gray-400';
-
-    return (
-        <div className={`rounded-xl border px-3 py-2 ${tone}`}>
-            <div className="flex items-center justify-between gap-3">
-                <span className="text-[10px] font-black uppercase tracking-widest">Source coverage: {coverage.coverage_level}</span>
-                <span className="text-[10px] opacity-80">{coverage.fact_count || 0} facts</span>
-            </div>
-        </div>
-    );
-};
 
 const ResourceLearningTasks = ({ tasks = [], activeTab }) => {
     const resourceType = RESOURCE_TYPE_BY_TAB[activeTab];
@@ -995,47 +978,6 @@ const CodeEvidencePanel = ({ selectedNode, userId }) => {
 
     return (
         <div className="space-y-3">
-            {/* Keywords filter pills section */}
-            {selectedNode?.key_concepts?.length > 0 && (
-                <div className="rounded-2xl border border-gray-700/40 bg-gray-900/35 p-3 flex flex-wrap items-center gap-1.5">
-                    <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">Filter by keyword:</span>
-                    {selectedNode.key_concepts.map(kw => {
-                        const isActive = selectedKeyword === kw;
-                        const isLoading = loadingKeyword === kw;
-                        return (
-                            <button
-                                key={kw}
-                                type="button"
-                                disabled={loadingKeyword !== null}
-                                onClick={() => isActive ? clearKeywordSearch() : searchCodeByKeyword(kw)}
-                                className={`rounded-md border px-2 py-0.5 text-[9px] font-bold transition flex items-center gap-1 ${
-                                    isActive
-                                        ? 'border-emerald-400/40 bg-emerald-500/20 text-emerald-300'
-                                        : 'border-gray-700/50 bg-gray-800/40 text-gray-400 hover:border-gray-600 hover:text-gray-200'
-                                }`}
-                            >
-                                {isLoading && <Loader2 className="w-2.5 h-2.5 animate-spin" />}
-                                <span>{kw}</span>
-                            </button>
-                        );
-                    })}
-                    {selectedKeyword && (
-                        <button
-                            type="button"
-                            onClick={clearKeywordSearch}
-                            className="text-[9px] text-red-400 hover:text-red-300 underline font-bold"
-                        >
-                            Clear filter
-                        </button>
-                    )}
-                </div>
-            )}
-
-            {keywordError && (
-                <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 text-[9px] text-red-300">
-                    {keywordError}
-                </p>
-            )}
 
             {/* Tree and code flex wrapper */}
             <div 
@@ -1375,8 +1317,6 @@ const ResourcePanel = ({ resourceData, loading, selectedNode, userId, isLightThe
                         );
                     })}
                 </div>
-
-                <ResourceGroundingSummary coverage={resourceData.source_coverage} />
             </div>
 
             <div className="space-y-6">
