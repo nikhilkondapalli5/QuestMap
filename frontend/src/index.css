@@ -101,14 +101,19 @@ body {
 
 /* Dashboard light theme skin */
 .quest-theme-light {
-    background: #f1f5f9;
-    color: #111827;
+    background: #f8fafc;
+    color: #0f172a;
 }
 
 .quest-theme-light .text-white {
-    color: #111827 !important;
+    color: #0f172a !important;
 }
 
+.quest-theme-light [class*="text-white/"] {
+    color: #64748b !important;
+}
+
+.quest-theme-light .text-gray-200,
 .quest-theme-light .text-gray-300,
 .quest-theme-light .text-gray-400 {
     color: #475569 !important;
@@ -119,35 +124,268 @@ body {
     color: #64748b !important;
 }
 
-.quest-theme-light [class*="bg-gray-800"],
-.quest-theme-light [class*="bg-gray-900"],
+.quest-theme-light [class*="text-gray-700"],
+.quest-theme-light [class*="placeholder:text-gray"]::placeholder,
+.quest-theme-light input::placeholder,
+.quest-theme-light textarea::placeholder {
+    color: #64748b !important;
+}
+
+.quest-theme-light [class*="bg-gray-950"],
+.quest-theme-light [class*="bg-gray-900"] {
+    background-color: #f8fafc !important;
+}
+
+.quest-theme-light [class*="bg-gray-800"] {
+    background-color: #ffffff !important;
+}
+
+.quest-theme-light [class*="bg-gray-700"] {
+    background-color: #e2e8f0 !important;
+}
+
 .quest-theme-light [class*="bg-gray-950"] {
-    background-color: rgba(255, 255, 255, 0.88) !important;
+    background-color: #f8fafc !important;
+}
+
+.quest-theme-light .bg-black,
+.quest-theme-light [class*="bg-black/"] {
+    background-color: rgba(255, 255, 255, 0.92) !important;
 }
 
 .quest-theme-light [class*="border-gray-700"],
 .quest-theme-light [class*="border-gray-600"],
 .quest-theme-light [class*="border-white"] {
-    border-color: rgba(203, 213, 225, 0.85) !important;
+    border-color: #cbd5e1 !important;
 }
 
+.quest-theme-light [class*="bg-white/[0.03]"],
 .quest-theme-light [class*="bg-white/5"],
 .quest-theme-light [class*="bg-white/10"] {
-    background-color: rgba(15, 23, 42, 0.06) !important;
+    background-color: rgba(255, 255, 255, 0.72) !important;
+}
+
+.quest-theme-light [class*="hover:bg-white/"]:hover {
+    background-color: rgba(241, 245, 249, 0.95) !important;
 }
 
 .quest-theme-light .resource-subtabs {
-    background: rgba(241, 245, 249, 0.9) !important;
-    border-color: rgba(203, 213, 225, 0.9) !important;
+    background: #e2e8f0 !important;
+    border-color: #cbd5e1 !important;
 }
 
 .quest-theme-light .resource-subtabs button[class*="bg-white/10"] {
     background: #ffffff !important;
-    color: #111827 !important;
+    color: #0f172a !important;
 }
 
-.quest-theme-light .bg-red-600 .text-white,
-.quest-theme-light [class*="from-blue"] .text-white,
-.quest-theme-light iframe + div .text-white {
-    color: #ffffff !important;
+.resource-section-title,
+.resource-card-title {
+    color: #ffffff;
+}
+
+.quest-theme-light .resource-section-title,
+.quest-theme-light .resource-card-title {
+    color: #0f172a !important;
+}
+
+.quest-theme-light pre,
+.quest-theme-light code,
+.quest-theme-light .font-mono {
+    color: #1e293b !important;
+}
+
+.quest-theme-light [class*="text-blue-200"],
+.quest-theme-light [class*="text-blue-300"],
+.quest-theme-light [class*="text-blue-400"] {
+    color: #2563eb !important;
+}
+
+.quest-theme-light [class*="text-purple-300"],
+.quest-theme-light [class*="text-purple-400"] {
+    color: #7c3aed !important;
+}
+
+.quest-theme-light [class*="text-emerald-100"],
+.quest-theme-light [class*="text-emerald-200"],
+.quest-theme-light [class*="text-emerald-300"],
+.quest-theme-light [class*="text-emerald-400"],
+.quest-theme-light [class*="text-green-300"],
+.quest-theme-light [class*="text-green-400"],
+.quest-theme-light [class*="text-green-500"] {
+    color: #047857 !important;
+}
+
+.quest-theme-light [class*="text-amber-300"],
+.quest-theme-light [class*="text-amber-400"],
+.quest-theme-light [class*="text-yellow-300"],
+.quest-theme-light [class*="text-yellow-400"] {
+    color: #b45309 !important;
+}
+
+.quest-theme-light [class*="text-red-300"],
+.quest-theme-light [class*="text-red-400"],
+.quest-theme-light [class*="text-red-500"] {
+    color: #dc2626 !important;
+}
+
+.quest-theme-light [class*="bg-blue-500/5"],
+.quest-theme-light [class*="bg-blue-500/10"] {
+    background-color: #eff6ff !important;
+}
+
+.quest-theme-light [class*="bg-emerald-500/5"],
+.quest-theme-light [class*="bg-emerald-500/10"],
+.quest-theme-light [class*="bg-emerald-500/15"],
+.quest-theme-light [class*="bg-emerald-500/20"] {
+    background-color: #ecfdf5 !important;
+}
+
+.quest-theme-light [class*="bg-amber-500/5"],
+.quest-theme-light [class*="bg-amber-500/10"],
+.quest-theme-light [class*="bg-yellow-500/10"] {
+    background-color: #fffbeb !important;
+}
+
+.quest-theme-light [class*="bg-red-500/5"],
+.quest-theme-light [class*="bg-red-500/10"] {
+    background-color: #fef2f2 !important;
+}
+
+.quest-theme-light [class*="bg-purple-500/5"],
+.quest-theme-light [class*="bg-purple-500/10"] {
+    background-color: #f5f3ff !important;
+}
+
+/* IDE-like file tree styles */
+.code-tree-node {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    border: 1px solid transparent;
+    background: transparent;
+    font-size: 11px;
+    line-height: 1.5;
+    padding: 4px 6px;
+    border-radius: 4px;
+    text-align: left;
+    transition: background-color 0.15s, color 0.15s;
+    user-select: none;
+}
+
+.code-tree-node.is-file {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    color: #94a3b8; /* slate-400 */
+}
+
+.code-tree-node.is-folder {
+    font-weight: 500;
+    color: #cbd5e1; /* slate-300 */
+}
+
+.code-tree-node:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+    color: #f8fafc; /* slate-50 */
+}
+
+/* Light theme defaults */
+.quest-theme-light .code-tree-node.is-file {
+    color: #475569; /* slate-600 */
+}
+.quest-theme-light .code-tree-node.is-folder {
+    color: #1e293b; /* slate-800 */
+}
+.quest-theme-light .code-tree-node:hover {
+    background-color: rgba(0, 0, 0, 0.04);
+    color: #0f172a; /* slate-900 */
+}
+
+/* Folder containing matched children */
+.code-tree-node.is-folder.has-matched-child {
+    color: #34d399; /* emerald-400 */
+}
+.quest-theme-light .code-tree-node.is-folder.has-matched-child {
+    color: #059669; /* emerald-600 */
+}
+
+/* Matched file style (not active) */
+.code-tree-node.is-file.is-matched {
+    color: hsl(var(--hl-h), var(--hl-s), var(--hl-l));
+    font-weight: 600;
+}
+.quest-theme-light .code-tree-node.is-file.is-matched {
+    color: hsl(var(--hl-h), var(--hl-s), calc(var(--hl-l) - 20%)) !important;
+}
+
+/* Active file styling: soft solid background & left accent border */
+.code-tree-node.is-file.is-active {
+    background-color: rgba(16, 185, 129, 0.18);
+    color: #10b981; /* emerald-500 */
+    border-left: 2px solid #10b981;
+    border-radius: 0 4px 4px 0;
+    font-weight: 700;
+}
+.quest-theme-light .code-tree-node.is-file.is-active {
+    background-color: rgba(5, 150, 105, 0.1);
+    color: #047857; /* emerald-700 */
+    border-left: 2px solid #059669;
+}
+
+/* Interactive percentage badge in IDE style */
+.code-file-badge-ide {
+    background-color: hsla(var(--hl-h), var(--hl-s), 40%, 0.15);
+    border: 1px solid hsla(var(--hl-h), var(--hl-s), 50%, 0.25);
+    color: hsl(var(--hl-h), var(--hl-s), var(--hl-l));
+}
+.quest-theme-light .code-file-badge-ide {
+    background-color: hsla(var(--hl-h), var(--hl-s), 50%, 0.2) !important;
+    border-color: hsla(var(--hl-h), var(--hl-s), 45%, 0.3) !important;
+    color: hsl(var(--hl-h), var(--hl-s), calc(var(--hl-l) - 20%)) !important;
+}
+
+/* Code Tree Resizable Sidebar classes */
+.code-tree-sidebar {
+    width: 100%;
+}
+@media (min-width: 1024px) {
+    .code-tree-sidebar {
+        width: var(--tree-sidebar-width, 180px) !important;
+    }
+}
+
+/* Vertically resizable code viewport pre-blocks */
+.code-viewer-pre {
+    position: relative;
+    height: 320px;
+    min-height: 150px;
+    resize: vertical;
+    overflow: auto !important;
+    display: block !important;
+}
+
+.code-viewer-pre::-webkit-scrollbar {
+    width: 10px !important;
+    height: 10px !important;
+}
+.code-viewer-pre::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.6) !important;
+    border-radius: 0 0 12px 0;
+}
+.quest-theme-light .code-viewer-pre::-webkit-scrollbar-track {
+    background: rgba(241, 245, 249, 0.8) !important;
+}
+.code-viewer-pre::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.3) !important;
+    border-radius: 5px;
+}
+.code-viewer-pre::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.5) !important;
+}
+.code-viewer-pre::-webkit-resizer {
+    background: rgba(16, 185, 129, 0.8) !important;
+    cursor: nwse-resize;
+}
+.quest-theme-light .code-viewer-pre::-webkit-resizer {
+    background: rgba(5, 150, 105, 0.8) !important;
 }

@@ -1,13 +1,20 @@
-import { StrictMode } from 'react'
+import { StrictMode, Suspense, lazy } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import './index.css'
-import Home from './pages/Home.jsx'
-import App from './App.jsx'
-import Login from './pages/Login.jsx'
-import Profile from './pages/Profile.jsx'
-import Dashboard from './pages/Dashboard.jsx'
-import LevelQuiz from './pages/LevelQuiz.jsx'
+
+const Home = lazy(() => import('./pages/Home.jsx'));
+const App = lazy(() => import('./App.jsx'));
+const Login = lazy(() => import('./pages/Login.jsx'));
+const Profile = lazy(() => import('./pages/Profile.jsx'));
+const Dashboard = lazy(() => import('./pages/Dashboard.jsx'));
+const LevelQuiz = lazy(() => import('./pages/LevelQuiz.jsx'));
+
+const RouteFallback = () => (
+    <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        <div className="text-[10px] font-black uppercase tracking-[0.4em] text-white/40">Loading QuestMap</div>
+    </div>
+);
 
 const rootElement = document.getElementById('root');
 
@@ -20,15 +27,16 @@ try {
     root.render(
         <StrictMode>
             <BrowserRouter>
-                <Routes>
-                    <Route path="/" element={<Home />} />
-                    <Route path="/overview" element={<App />} />
-                    <Route path="/login" element={<Login />} />
-                    <Route path="/profile" element={<Profile />} />
-                    <Route path="/dashboard" element={<Dashboard />} />
-                    <Route path="/quiz" element={<LevelQuiz />} />
-                </Routes>
-
+                <Suspense fallback={<RouteFallback />}>
+                    <Routes>
+                        <Route path="/" element={<Home />} />
+                        <Route path="/overview" element={<App />} />
+                        <Route path="/login" element={<Login />} />
+                        <Route path="/profile" element={<Profile />} />
+                        <Route path="/dashboard" element={<Dashboard />} />
+                        <Route path="/quiz" element={<LevelQuiz />} />
+                    </Routes>
+                </Suspense>
             </BrowserRouter>
         </StrictMode>
     );

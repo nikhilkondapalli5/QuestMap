@@ -5,11 +5,13 @@ import { ArrowLeft, Check, X, BrainCircuit, Sparkles, Lock } from 'lucide-react'
 import { Timeline } from '../components/Timeline';
 import LoadingState from '../components/LoadingState';
 import { API_BASE } from '../config/api';
+import { auth } from '../firebase';
 
 const LevelQuiz = () => {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
     const [quizData, setQuizData] = useState(null);
+    const [profile, setProfile] = useState(null);
     const [currentLevel, setCurrentLevel] = useState(0); // 0 index = Level 1
     const [answers, setAnswers] = useState({}); // { levelIndex: selectedOptionIndex }
     const [feedback, setFeedback] = useState({}); // { levelIndex: 'success' | 'failure' }
@@ -22,14 +24,17 @@ const LevelQuiz = () => {
                 return;
             }
             const profile = JSON.parse(cachedProfileStr);
+            setProfile(profile);
 
             try {
+                const uid = auth.currentUser ? auth.currentUser.uid : (sessionStorage.getItem('questmap_uid') || 'anonymous');
                 const res = await fetch(`${API_BASE}/generate-quiz`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         topic: profile.topic,
-                        skill_level: profile.skill_level
+                        skill_level: profile.skill_level,
+                        userId: uid,
                     })
                 });
 
@@ -46,13 +51,36 @@ const LevelQuiz = () => {
         fetchQuiz();
     }, [navigate]);
 
-    const handleAnswer = (levelIndex, optionIndex, correctIndex) => {
+    const handleAnswer = async (levelIndex, optionIndex, correctIndex, level) => {
         if (answers[levelIndex] !== undefined) return; // Already answered
 
         setAnswers(prev => ({ ...prev, [levelIndex]: optionIndex }));
 
         const isCorrect = optionIndex === correctIndex;
         setFeedback(prev => ({ ...prev, [levelIndex]: isCorrect ? 'success' : 'failure' }));
+
+        const uid = auth.currentUser ? auth.currentUser.uid : (sessionStorage.getItem('questmap_uid') || 'anonymous');
+        if (profile?.topic) {
+            fetch(`${API_BASE}/mastery/attempt`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId: uid,
+                    topic: profile.topic,
+                    nodeLabel: 'overall',
+                    activityType: 'quiz',
+                    itemId: `level-${level?.level_number || levelIndex + 1}`,
+                    itemType: 'multiple_choice',
+                    question: level?.question || '',
+                    selectedAnswer: optionIndex,
+                    correctAnswer: correctIndex,
+                    isCorrect,
+                    concepts: [level?.title || profile.topic],
+                    confidence: 'low',
+                    validationStatus: 'ungrounded_exploratory',
+                }),
+            }).catch(err => console.warn('Failed to submit quiz mastery attempt:', err));
+        }
 
         if (isCorrect) {
             // Unlock next level after a short delay

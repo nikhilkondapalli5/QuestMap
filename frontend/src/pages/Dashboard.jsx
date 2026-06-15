@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Compass, Lightbulb, BookOpen, Youtube, LogOut, Clock, Brain, Sparkles, RefreshCw, Moon, Sun } from 'lucide-react';
+import { Compass, Lightbulb, BookOpen, Youtube, LogOut, Clock, Brain, Sparkles, RefreshCw, Moon, Sun, GitBranch } from 'lucide-react';
 import RecommendationList from '../components/RecommendationCard';
 import PracticePanel from '../components/PracticePanel';
 import ResourcePanel from '../components/ResourcePanel';
+import RepoLearningPanel from '../components/RepoLearningPanel';
 import LoadingState from '../components/LoadingState';
 import TubesBackground from '../components/TubesBackground';
 import LearningPathMap from '../components/LearningPathMap';
@@ -14,14 +15,131 @@ import { API_BASE } from '../config/api';
 
 const TABS = [
     { id: 'recommendations', label: 'Recommendations', icon: Lightbulb, color: 'text-amber-400', accent: 'bg-amber-400' },
+    { id: 'repo', label: 'Repo', icon: GitBranch, color: 'text-blue-400', accent: 'bg-blue-400' },
     { id: 'practice', label: 'Practice', icon: BookOpen, color: 'text-emerald-400', accent: 'bg-emerald-400' },
     { id: 'resources', label: 'Resources', icon: Youtube, color: 'text-red-400', accent: 'bg-red-400' },
 ];
 
-const NODE_CACHE_VERSION = 'youtube-search-v6';
+const DASHBOARD_CACHE_VERSION = 'repo-source-map-v6';
+const NODE_CACHE_VERSION = 'grounded-node-data-v3';
 const DEFAULT_PANEL_WIDTH = 480;
 const MIN_PANEL_WIDTH = 360;
-const MAX_PANEL_WIDTH = 760;
+const MAX_PANEL_WIDTH = 1120;
+const MIN_MAP_WIDTH = 280;
+
+const MasteryOverview = ({ summary }) => {
+    if (!summary || summary.mastery_level === 'unavailable') return null;
+    const accuracy = Math.round((summary.accuracy || 0) * 100);
+
+    return (
+        <div className="mb-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
+            <div className="flex items-center justify-between gap-3">
+                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-300">
+                    Mastery: {summary.mastery_level}
+                </span>
+                <span className="text-[10px] font-bold text-emerald-200">{accuracy}%</span>
+            </div>
+            <p className="mt-1 text-[11px] leading-relaxed text-gray-400">
+                {summary.correct_attempts || 0}/{summary.total_attempts || 0} recent attempts correct.
+                {summary.weak_concepts?.length > 0 ? ` Review: ${summary.weak_concepts.map(item => item.concept).join(', ')}` : ' No weak concepts logged yet.'}
+            </p>
+        </div>
+    );
+};
+
+const REPO_BLOOM_SEQUENCE = ['Understand', 'Understand', 'Apply', 'Apply', 'Analyze', 'Analyze', 'Evaluate', 'Evaluate', 'Create', 'Create'];
+
+const getProfileSourceKey = (profile) => {
+    const type = profile?.source_type || 'topic';
+    const value = type === 'repo' ? (profile?.repo_url || profile?.topic || '') : (profile?.topic || '');
+    return `${type}:${String(value).trim().toLowerCase()}`;
+};
+
+const getRepoBloomLevel = (index) => REPO_BLOOM_SEQUENCE[Math.min(index, REPO_BLOOM_SEQUENCE.length - 1)];
+
+const getRepoEstimatedHours = (concept) => {
+    const keywordCount = Array.isArray(concept?.keywords) ? concept.keywords.length : 0;
+    const goalCount = Array.isArray(concept?.learning_goals) ? concept.learning_goals.length : 0;
+    const evidenceCount = Array.isArray(concept?.evidence_ids) ? concept.evidence_ids.length : 0;
+    const base = concept?.confidence === 'low' ? 2 : 3;
+    return Math.min(8, base + Math.min(3, Math.ceil((keywordCount + goalCount + evidenceCount) / 4)));
+};
+
+const buildRepoMapData = (repoResult, skillLevel) => {
+    const concepts = repoResult?.analysis?.concepts || [];
+    const conceptById = new Map(concepts.map(concept => [concept.id, concept]));
+    const path = repoResult?.analysis?.learning_path?.length
+        ? repoResult.analysis.learning_path
+        : concepts.map((concept, index) => ({ order: index + 1, concept_id: concept.id, title: concept.title }));
+
+    const nodes = path
+        .map((step, index) => {
+            const concept = conceptById.get(step.concept_id);
+            if (!concept) return null;
+            return {
+                id: `repo:${repoResult.repo?.fullName || 'repo'}:${concept.id}`,
+                label: concept.title,
+                status: index === 0 ? 'recommended_next' : 'not_started',
+                bloom_level: getRepoBloomLevel(index),
+                difficulty: skillLevel || 'beginner',
+                estimated_hours: getRepoEstimatedHours(concept),
+                key_concepts: (concept.keywords || concept.tools || []).slice(0, 8),
+                learning_goals: concept.learning_goals || [],
+                prerequisites: concept.prerequisites || [],
+                topicOverride: concept.title,
+                resourceQuery: concept.resource_query,
+                repoConcept: true,
+                repoFullName: repoResult.repo?.fullName,
+                why_relevant: concept.why_relevant,
+                practice_focus: concept.practice_focus,
+                search_query: concept.search_query || step.search_query || '',
+                code_references: concept.code_references || step.code_references || [],
+                code_ingestion: repoResult.code_ingestion || null,
+                code_files: repoResult.code_files || [],
+            };
+        })
+        .filter(Boolean);
+
+    return {
+        topic: repoResult.repo?.fullName || 'GitHub repo',
+        title: `Concept path for ${repoResult.repo?.fullName || 'GitHub repo'}`,
+        total_estimated_hours: nodes.reduce((sum, node) => sum + (node.estimated_hours || 0), 0),
+        nodes,
+        edges: [],
+        repo_summary: repoResult.analysis?.repo_summary,
+        detected_stack: repoResult.analysis?.detected_stack || [],
+    };
+};
+
+const buildRepoProfileData = (repoResult, skillLevel) => {
+    const concepts = repoResult?.analysis?.concepts || [];
+    return {
+        topic: repoResult.repo?.fullName || 'GitHub repo concepts',
+        skill_level: skillLevel || 'beginner',
+        learner_summary: repoResult.analysis?.repo_summary?.plain_english || 'A repo-based concept learning path was generated.',
+        estimated_total_hours: concepts.reduce((sum, concept) => sum + getRepoEstimatedHours(concept), 0),
+        recommended_pace: skillLevel === 'advanced' ? 'accelerated' : 'steady',
+        learning_history: [],
+        knowledge_gaps: concepts
+            .flatMap(concept => concept.prerequisites || [])
+            .slice(0, 8),
+    };
+};
+
+const buildRepoRecommendations = (repoResult, skillLevel) => {
+    const concepts = repoResult?.analysis?.concepts || [];
+    return concepts.slice(0, 6).map((concept, index) => ({
+        id: `repo-rec-${concept.id}`,
+        priority: index < 2 ? 'high' : 'medium',
+        difficulty: skillLevel || 'beginner',
+        title: `Study ${concept.title}`,
+        description: (concept.learning_goals || []).slice(0, 2).join(' ') || concept.practice_focus || `Build general understanding of ${concept.title}.`,
+        reason: concept.why_relevant,
+        estimated_hours: getRepoEstimatedHours(concept),
+        related_to_goal: repoResult.repo?.fullName || 'GitHub repo',
+        prerequisites_met: index === 0,
+    }));
+};
 
 const Dashboard = () => {
     const navigate = useNavigate();
@@ -35,6 +153,8 @@ const Dashboard = () => {
     const [recommendations, setRecommendations] = useState(null);
     const [practiceData, setPracticeData] = useState(null);
     const [resourceData, setResourceData] = useState(null);
+    const [masteryOverview, setMasteryOverview] = useState(null);
+    const [repoAnalysis, setRepoAnalysis] = useState(null);
 
     // UI states
     const [selectedNode, setSelectedNode] = useState(null);
@@ -61,6 +181,10 @@ const Dashboard = () => {
     const [loading, setLoading] = useState({ profile: false, map: false, recommendations: false, practice: false, resources: false });
     const [error, setError] = useState(null);
     const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+    const currentUserId = auth.currentUser ? auth.currentUser.uid : (sessionStorage.getItem('questmap_uid') || 'anonymous');
+    const dashboardTitle = profile?.source_type === 'repo'
+        ? (mapData?.topic || repoAnalysis?.repo?.fullName || profile?.repo_url || 'GitHub repo')
+        : profile?.topic;
 
     // Load profile from sessionStorage on mount
     useEffect(() => {
@@ -86,7 +210,7 @@ const Dashboard = () => {
         });
         if (!res.ok) {
             const err = await res.json().catch(() => ({}));
-            throw new Error(err.error || `API error: ${res.status}`);
+            throw new Error(err.details || err.error || `API error: ${res.status}`);
         }
         return res.json();
     }, []);
@@ -95,14 +219,19 @@ const Dashboard = () => {
     useEffect(() => {
         if (!profile || initialLoadComplete) return;
 
-        const cached = sessionStorage.getItem('questmap_dashboard_cache') || sessionStorage.getItem('questmap_cached_data');
+        const dashboardCached = sessionStorage.getItem('questmap_dashboard_cache');
+        const resumeCached = sessionStorage.getItem('questmap_cached_data');
+        const cached = dashboardCached || resumeCached;
+        const isResumeCache = !dashboardCached && Boolean(resumeCached);
         if (cached) {
             try {
                 const parsed = JSON.parse(cached);
                 const cachedTopic = parsed.topic || (parsed.profileData && parsed.profileData.topic);
+                const cachedSourceKey = parsed.sourceKey || `topic:${String(cachedTopic || '').toLowerCase()}`;
+                const currentSourceKey = getProfileSourceKey(profile);
 
                 // If the user changed their topic in the profile, we MUST invalidate the old cache!
-                if (cachedTopic && profile.topic && cachedTopic.toLowerCase() !== profile.topic.toLowerCase()) {
+                if ((!isResumeCache && parsed.__version !== DASHBOARD_CACHE_VERSION) || cachedSourceKey !== currentSourceKey) {
                     sessionStorage.removeItem('questmap_dashboard_cache');
                     sessionStorage.removeItem('questmap_cached_data');
                     sessionStorage.removeItem('questmap_node_cache');
@@ -110,6 +239,7 @@ const Dashboard = () => {
                     setMapData(parsed.mapData);
                     setRecommendations(parsed.recommendations);
                     setProfileData(parsed.profileData);
+                    setRepoAnalysis(parsed.repoAnalysis || null);
                     setInitialLoadComplete(true);
                     
                     // If it came from Resume Quest, move it to dashboard cache and clear the old one
@@ -131,6 +261,51 @@ const Dashboard = () => {
                 // Step 1: Generate profile & learning history
                 const currentUser = auth.currentUser;
                 const uid = currentUser ? currentUser.uid : (sessionStorage.getItem('questmap_uid') || 'anonymous');
+
+                if (profile.source_type === 'repo') {
+                    setLoading(l => ({ ...l, profile: true, map: true, recommendations: true }));
+                    const repoResult = await apiFetch('repo/analyze', {
+                        userId: uid,
+                        repoUrl: profile.repo_url || profile.topic,
+                        skillLevel: profile.skill_level,
+                    });
+                    const repoProfileData = buildRepoProfileData(repoResult, profile.skill_level);
+                    const repoMapData = buildRepoMapData(repoResult, profile.skill_level);
+                    const repoRecommendations = buildRepoRecommendations(repoResult, profile.skill_level);
+
+                    setRepoAnalysis(repoResult);
+                    setProfileData(repoProfileData);
+                    setMapData(repoMapData);
+                    setRecommendations(repoRecommendations);
+                    setLoading(l => ({ ...l, profile: false, map: false, recommendations: false }));
+                    setInitialLoadComplete(true);
+
+                    sessionStorage.setItem('questmap_dashboard_cache', JSON.stringify({
+                        __version: DASHBOARD_CACHE_VERSION,
+                        sourceKey: getProfileSourceKey(profile),
+                        topic: repoMapData.topic,
+                        mapData: repoMapData,
+                        recommendations: repoRecommendations,
+                        profileData: repoProfileData,
+                        repoAnalysis: repoResult,
+                    }));
+
+                    if (import.meta.env.VITE_AUTOSAVE !== 'false') {
+                        fetch(`${API_BASE}/save-quest`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                userId: uid,
+                                topic: repoMapData.topic,
+                                skillLevel: profile.skill_level,
+                                profileData: repoProfileData,
+                                mapData: repoMapData,
+                                recommendations: repoRecommendations,
+                            })
+                        }).catch(e => console.error("Auto-save failed:", e));
+                    }
+                    return;
+                }
 
                 setLoading(l => ({ ...l, profile: true }));
                 const profResult = await apiFetch('generate-profile', { ...profile, userId: uid });
@@ -164,6 +339,8 @@ const Dashboard = () => {
 
                 // Cache the main curriculum data so we don't re-fetch if we go to quiz and back
                 sessionStorage.setItem('questmap_dashboard_cache', JSON.stringify({
+                    __version: DASHBOARD_CACHE_VERSION,
+                    sourceKey: getProfileSourceKey(profile),
                     topic: profile.topic,
                     mapData: mapResult,
                     recommendations: recResult.recommendations,
@@ -199,6 +376,27 @@ const Dashboard = () => {
         generateInitialData();
     }, [profile, initialLoadComplete, apiFetch]);
 
+    useEffect(() => {
+        if (!profile?.topic || !initialLoadComplete || profile.source_type === 'repo') return undefined;
+
+        let cancelled = false;
+        const loadMastery = async () => {
+            try {
+                const res = await fetch(`${API_BASE}/mastery/summary/${currentUserId}?topic=${encodeURIComponent(profile.topic)}`);
+                if (!res.ok) return;
+                const data = await res.json();
+                if (!cancelled) setMasteryOverview(data);
+            } catch (err) {
+                console.warn('Failed to load mastery overview:', err);
+            }
+        };
+
+        loadMastery();
+        return () => {
+            cancelled = true;
+        };
+    }, [currentUserId, initialLoadComplete, profile?.topic, profile?.source_type]);
+
     // Persist node cache to sessionStorage (survives quiz navigation)
     const persistNodeCache = useCallback((cache) => {
         try {
@@ -233,13 +431,17 @@ const Dashboard = () => {
         const uid = currentUser ? currentUser.uid : (sessionStorage.getItem('questmap_uid') || 'anonymous');
 
         try {
+            const nodeTopic = node.topicOverride || node.topic || profile.topic;
+            const nodeKeyConcepts = node.key_concepts || node.learning_goals || [];
+
             // SINGLE merged call — 1 Pinecone lookup + 2 parallel LLM calls on the backend
             const nodeData = await apiFetch('generate-node-data', {
-                topic: profile.topic,
+                topic: nodeTopic,
                 userId: uid,
                 node_label: node.label,
                 skill_level: profile.skill_level,
-                key_concepts: node.key_concepts,
+                key_concepts: nodeKeyConcepts,
+                resource_query: node.resourceQuery || null,
                 ytAccessToken: sessionStorage.getItem('yt_access_token') || null,
             });
 
@@ -256,6 +458,25 @@ const Dashboard = () => {
         }
     }, [profile, apiFetch, persistNodeCache]);
 
+    const handleRepoConceptSelect = useCallback((concept, targetTab = 'resources') => {
+        const repoNode = {
+            id: `repo:${concept.repoFullName || 'repo'}:${concept.id}`,
+            label: concept.title,
+            topicOverride: concept.title,
+            key_concepts: (concept.keywords || concept.tools || []).slice(0, 8),
+            learning_goals: concept.learning_goals || [],
+            prerequisites: concept.prerequisites || [],
+            repoConcept: true,
+            resourceQuery: concept.resource_query,
+            search_query: concept.search_query || '',
+            code_references: concept.code_references || [],
+            code_ingestion: repoAnalysis?.code_ingestion || null,
+            code_files: repoAnalysis?.code_files || [],
+        };
+        setActiveTab(targetTab);
+        handleNodeSelect(repoNode);
+    }, [handleNodeSelect, repoAnalysis?.code_ingestion]);
+
     const handleLogout = () => {
         sessionStorage.removeItem('questmap_profile');
         sessionStorage.removeItem('questmap_dashboard_cache');
@@ -271,7 +492,9 @@ const Dashboard = () => {
     };
 
     const clampPanelWidth = useCallback((width) => {
-        const viewportLimit = typeof window === 'undefined' ? MAX_PANEL_WIDTH : Math.max(MIN_PANEL_WIDTH, window.innerWidth - 420);
+        const viewportLimit = typeof window === 'undefined'
+            ? MAX_PANEL_WIDTH
+            : Math.max(MIN_PANEL_WIDTH, Math.min(window.innerWidth * 0.7, window.innerWidth - MIN_MAP_WIDTH));
         return Math.min(Math.max(width, MIN_PANEL_WIDTH), Math.min(MAX_PANEL_WIDTH, viewportLimit));
     }, []);
 
@@ -320,12 +543,17 @@ const Dashboard = () => {
     if (!profile) return null;
 
     if (!initialLoadComplete && (loading.profile || loading.map || loading.recommendations)) {
-        const msg = loading.profile
+        const isRepoLoading = profile.source_type === 'repo';
+        const msg = isRepoLoading
+            ? 'Analyzing repository...'
+            : loading.profile
             ? 'Analyzing learning DNA...'
             : loading.map
                 ? 'Forging your 3D Knowledge Sphere...'
                 : 'Mapping high-probability quest paths...';
-        const sub = loading.profile
+        const sub = isRepoLoading
+            ? 'Extracting evidence and mapping repo signals to teachable concepts'
+            : loading.profile
             ? 'Synthesizing knowledge lattice based on your cognitive profile'
             : loading.map
                 ? 'Distributing curriculum nodes on a Fibonacci neural manifold'
@@ -377,7 +605,7 @@ const Dashboard = () => {
                         <div className={cn("h-6 w-px", isLightTheme ? "bg-gray-200" : "bg-white/10")} />
                         <div className={cn("flex items-center gap-3 px-4 py-1.5 rounded-full border", isLightTheme ? "bg-gray-100 border-gray-200" : "bg-white/5 border-white/10")}>
                             <Brain className="w-4 h-4 text-purple-400" />
-                            <span className={cn("text-[11px] font-black uppercase tracking-widest max-w-[200px] truncate", isLightTheme ? "text-gray-700" : "text-gray-300")}>{profile.topic}</span>
+                            <span className={cn("text-[11px] font-black uppercase tracking-widest max-w-[200px] truncate", isLightTheme ? "text-gray-700" : "text-gray-300")}>{dashboardTitle}</span>
                         </div>
                         <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.2em] border ${profile.skill_level === 'beginner' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
                             profile.skill_level === 'intermediate' ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' :
@@ -530,18 +758,36 @@ const Dashboard = () => {
                                             <span className="text-[10px] font-black uppercase tracking-widest animate-pulse text-gray-500">Scanning neural gaps...</span>
                                         </div>
                                     ) : (
-                                        <RecommendationList recommendations={recommendations} />
+                                        <>
+                                            <MasteryOverview summary={masteryOverview} />
+                                            <RecommendationList recommendations={recommendations} />
+                                        </>
                                     )}
                                 </motion.div>
                             )}
                             {activeTab === 'practice' && (
                                 <motion.div key="prac" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
-                                    <PracticePanel practiceData={practiceData} loading={loading.practice} selectedNode={selectedNode} />
+                                    <PracticePanel
+                                        practiceData={practiceData}
+                                        loading={loading.practice}
+                                        selectedNode={selectedNode}
+                                        masteryContext={{ userId: currentUserId, topic: selectedNode?.topicOverride || selectedNode?.topic || profile.topic, skillLevel: profile.skill_level }}
+                                    />
+                                </motion.div>
+                            )}
+                            {activeTab === 'repo' && (
+                                <motion.div key="repo" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+                                    <RepoLearningPanel
+                                        userId={currentUserId}
+                                        skillLevel={profile.skill_level}
+                                        initialAnalysis={repoAnalysis}
+                                        onConceptSelect={handleRepoConceptSelect}
+                                    />
                                 </motion.div>
                             )}
                             {activeTab === 'resources' && (
-                                <motion.div key="res" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
-                                    <ResourcePanel resourceData={resourceData} loading={loading.resources} selectedNode={selectedNode} />
+                                <motion.div key="res" className="h-full min-h-0" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+                                    <ResourcePanel resourceData={resourceData} loading={loading.resources} selectedNode={selectedNode} userId={currentUserId} />
                                 </motion.div>
                             )}
                         </AnimatePresence>

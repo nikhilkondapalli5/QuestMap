@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle, XCircle, Code, BookOpen, HelpCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { CheckCircle, XCircle, Code, BookOpen, HelpCircle, ChevronDown, ChevronUp, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { API_BASE } from '../config/api';
 
 // ─── Multiple Choice ────────────────────────────────────────────────────────
 
-const MultipleChoice = ({ scenario }) => {
+const MultipleChoice = ({ scenario, onAttempt, onRequestRemediation }) => {
     const [selected, setSelected] = useState(null);
     const [showExplanation, setShowExplanation] = useState(false);
+    const [remediation, setRemediation] = useState(null);
 
     const isCorrect = selected === scenario.correct_answer;
     const hasAnswered = selected !== null;
@@ -26,7 +28,13 @@ const MultipleChoice = ({ scenario }) => {
                     return (
                         <button
                             key={i}
-                            onClick={() => { if (!hasAnswered) { setSelected(i); setShowExplanation(true); } }}
+                            onClick={async () => {
+                                if (hasAnswered) return;
+                                setSelected(i);
+                                setShowExplanation(true);
+                                const result = await onAttempt?.(scenario, i);
+                                if (result?.remediation) setRemediation(result.remediation);
+                            }}
                             disabled={hasAnswered}
                             className={`w-full text-left px-4 py-3 rounded-xl border text-sm transition-all flex items-center gap-3 ${optClass}`}
                         >
@@ -54,6 +62,20 @@ const MultipleChoice = ({ scenario }) => {
                             <p className="font-semibold mb-1">{isCorrect ? '✅ Correct!' : '❌ Not quite.'}</p>
                             <p className="text-gray-300">{scenario.explanation}</p>
                         </div>
+                        {remediation && (
+                            <div className="mt-2 p-3 rounded-xl text-xs leading-relaxed bg-blue-500/10 border border-blue-500/20 text-blue-200">
+                                <p className="font-semibold mb-1">{remediation.title}</p>
+                                <p className="text-gray-300">{remediation.review_task}</p>
+                                <p className="text-gray-400 mt-1">{remediation.practice_task}</p>
+                                <button
+                                    type="button"
+                                    onClick={() => onRequestRemediation?.(remediation)}
+                                    className="mt-3 rounded-lg bg-blue-500/20 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-blue-200 hover:bg-blue-500/30"
+                                >
+                                    Generate Drill
+                                </button>
+                            </div>
+                        )}
                     </motion.div>
                 )}
             </AnimatePresence>
@@ -63,8 +85,17 @@ const MultipleChoice = ({ scenario }) => {
 
 // ─── Scenario Based ─────────────────────────────────────────────────────────
 
-const ScenarioBased = ({ scenario }) => {
+const ScenarioBased = ({ scenario, onAttempt, onRequestRemediation }) => {
     const [showSolution, setShowSolution] = useState(false);
+    const [selfCheck, setSelfCheck] = useState(null);
+    const [remediation, setRemediation] = useState(null);
+
+    const handleSelfCheck = async (isCorrect) => {
+        if (selfCheck !== null) return;
+        setSelfCheck(isCorrect);
+        const result = await onAttempt?.(scenario, isCorrect ? 'self_correct' : 'needs_review', isCorrect);
+        if (result?.remediation) setRemediation(result.remediation);
+    };
 
     return (
         <div className="space-y-3">
@@ -101,6 +132,37 @@ const ScenarioBased = ({ scenario }) => {
                                     {scenario.key_takeaway}
                                 </div>
                             )}
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    disabled={selfCheck !== null}
+                                    onClick={() => handleSelfCheck(true)}
+                                    className="rounded-lg bg-emerald-500/15 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-emerald-300 disabled:opacity-50"
+                                >
+                                    Got it
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={selfCheck !== null}
+                                    onClick={() => handleSelfCheck(false)}
+                                    className="rounded-lg bg-amber-500/15 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-amber-300 disabled:opacity-50"
+                                >
+                                    Needs review
+                                </button>
+                            </div>
+                            {remediation && (
+                                <div className="bg-blue-500/5 border border-blue-500/15 rounded-xl p-3 text-xs text-blue-200 leading-relaxed">
+                                    <span className="text-blue-300 font-semibold text-[10px] uppercase tracking-wider block mb-1">{remediation.title}</span>
+                                    {remediation.review_task}
+                                    <button
+                                        type="button"
+                                        onClick={() => onRequestRemediation?.(remediation)}
+                                        className="mt-3 block rounded-lg bg-blue-500/20 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-blue-200 hover:bg-blue-500/30"
+                                    >
+                                        Generate Drill
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </motion.div>
                 )}
@@ -111,8 +173,17 @@ const ScenarioBased = ({ scenario }) => {
 
 // ─── Code Challenge ─────────────────────────────────────────────────────────
 
-const CodeChallenge = ({ scenario }) => {
+const CodeChallenge = ({ scenario, onAttempt, onRequestRemediation }) => {
     const [showSolution, setShowSolution] = useState(false);
+    const [selfCheck, setSelfCheck] = useState(null);
+    const [remediation, setRemediation] = useState(null);
+
+    const handleSelfCheck = async (isCorrect) => {
+        if (selfCheck !== null) return;
+        setSelfCheck(isCorrect);
+        const result = await onAttempt?.(scenario, isCorrect ? 'self_correct' : 'needs_review', isCorrect);
+        if (result?.remediation) setRemediation(result.remediation);
+    };
 
     return (
         <div className="space-y-3">
@@ -145,6 +216,37 @@ const CodeChallenge = ({ scenario }) => {
                         {scenario.explanation && (
                             <div className="bg-emerald-500/5 border border-emerald-500/15 rounded-xl p-3 text-xs text-gray-300 leading-relaxed">
                                 {scenario.explanation}
+                            </div>
+                        )}
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                disabled={selfCheck !== null}
+                                onClick={() => handleSelfCheck(true)}
+                                className="rounded-lg bg-emerald-500/15 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-emerald-300 disabled:opacity-50"
+                            >
+                                Solution matched
+                            </button>
+                            <button
+                                type="button"
+                                disabled={selfCheck !== null}
+                                onClick={() => handleSelfCheck(false)}
+                                className="rounded-lg bg-amber-500/15 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-amber-300 disabled:opacity-50"
+                            >
+                                Needs review
+                            </button>
+                        </div>
+                        {remediation && (
+                            <div className="bg-blue-500/5 border border-blue-500/15 rounded-xl p-3 text-xs text-blue-200 leading-relaxed">
+                                <span className="text-blue-300 font-semibold text-[10px] uppercase tracking-wider block mb-1">{remediation.title}</span>
+                                {remediation.review_task}
+                                <button
+                                    type="button"
+                                    onClick={() => onRequestRemediation?.(remediation)}
+                                    className="mt-3 block rounded-lg bg-blue-500/20 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-blue-200 hover:bg-blue-500/30"
+                                >
+                                    Generate Drill
+                                </button>
                             </div>
                         )}
                     </motion.div>
@@ -180,9 +282,164 @@ const TypeIcon = ({ type }) => {
     return icons[type] || icons.multiple_choice;
 };
 
+const GroundingBadge = ({ scenario }) => {
+    const status = scenario.validation_status || 'ungrounded_exploratory';
+    const isSupported = status === 'source_supported';
+    const needsReview = status === 'needs_source_review';
+
+    return (
+        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
+            isSupported
+                ? 'bg-blue-500/15 text-blue-400 border-blue-500/20'
+                : needsReview
+                    ? 'bg-amber-500/15 text-amber-400 border-amber-500/20'
+                    : 'bg-gray-500/15 text-gray-400 border-gray-500/20'
+        }`}>
+            {isSupported ? <ShieldCheck className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+            {isSupported ? 'Source backed' : needsReview ? 'Needs source review' : 'Exploratory'}
+        </span>
+    );
+};
+
+const PracticeGroundingSummary = ({ summary }) => {
+    if (!summary) return null;
+
+    const badgeClass = summary.coverage_level === 'high'
+        ? 'bg-blue-500/10 border-blue-500/20 text-blue-300'
+        : summary.coverage_level === 'medium'
+            ? 'bg-amber-500/10 border-amber-500/20 text-amber-300'
+            : 'bg-gray-500/10 border-gray-500/20 text-gray-300';
+
+    return (
+        <div className={`rounded-2xl border p-4 ${badgeClass}`}>
+            <div className="flex items-center gap-2 mb-1">
+                <ShieldCheck className="w-4 h-4" />
+                <span className="text-[10px] font-black uppercase tracking-widest">
+                    Source coverage: {summary.coverage_level}
+                </span>
+            </div>
+            <p className="text-[11px] leading-relaxed opacity-85">
+                {summary.fact_count} source-backed facts from {summary.trusted_source_count} extractable source(s).
+                {summary.metadata_only_source_count > 0 ? ` ${summary.metadata_only_source_count} discovered resource(s) are metadata-only.` : ''}
+            </p>
+            {summary.warning && (
+                <p className="text-[11px] leading-relaxed mt-2 opacity-85">{summary.warning}</p>
+            )}
+        </div>
+    );
+};
+
+const SourceEvidence = ({ scenario, facts = [] }) => {
+    const citedFacts = (scenario.source_fact_ids || [])
+        .map(id => facts.find(fact => fact.fact_id === id))
+        .filter(Boolean);
+
+    if (citedFacts.length === 0) return null;
+
+    return (
+        <div className="bg-blue-500/5 border border-blue-500/10 rounded-xl p-3 text-[11px] text-gray-400 leading-relaxed">
+            <span className="block text-blue-400 font-bold text-[10px] uppercase tracking-wider mb-1">Source evidence</span>
+            <div className="space-y-1.5">
+                {citedFacts.slice(0, 2).map(fact => (
+                    <p key={fact.fact_id}>
+                        <span className="text-blue-300 font-semibold">{fact.fact_id}</span>: {fact.claim}
+                    </p>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+const MasterySummary = ({ summary }) => {
+    if (!summary) return null;
+
+    const accuracy = Math.round((summary.accuracy || 0) * 100);
+    return (
+        <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-emerald-200">
+            <div className="flex items-center justify-between gap-3">
+                <span className="text-[10px] font-black uppercase tracking-widest">
+                    Mastery: {summary.mastery_level}
+                </span>
+                <span className="text-[10px] font-bold">{accuracy}% accuracy</span>
+            </div>
+            <p className="mt-1 text-[11px] text-gray-300">
+                {summary.correct_attempts || 0}/{summary.total_attempts || 0} recent attempts correct.
+                {summary.weak_concepts?.length > 0 ? ` Focus: ${summary.weak_concepts.map(item => item.concept).join(', ')}` : ''}
+            </p>
+        </div>
+    );
+};
+
 // ─── Main Panel ─────────────────────────────────────────────────────────────
 
-const PracticePanel = ({ practiceData, loading, selectedNode }) => {
+const PracticePanel = ({ practiceData, loading, selectedNode, masteryContext }) => {
+    const [masterySummary, setMasterySummary] = useState(null);
+    const [remediationPractice, setRemediationPractice] = useState(null);
+    const [remediationLoading, setRemediationLoading] = useState(false);
+
+    const submitAttempt = async (scenario, selectedAnswer, correctnessOverride = null) => {
+        if (!masteryContext?.userId || !masteryContext?.topic) return null;
+
+        const isCorrect = typeof correctnessOverride === 'boolean'
+            ? correctnessOverride
+            : selectedAnswer === scenario.correct_answer;
+        try {
+            const res = await fetch(`${API_BASE}/mastery/attempt`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId: masteryContext.userId,
+                    topic: masteryContext.topic,
+                    nodeLabel: selectedNode?.label || 'overall',
+                    activityType: 'practice',
+                    itemId: String(scenario.id || scenario.question || ''),
+                    itemType: scenario.type || 'multiple_choice',
+                    question: scenario.question,
+                    selectedAnswer,
+                    correctAnswer: scenario.correct_answer,
+                    isCorrect,
+                    concepts: selectedNode?.key_concepts || [],
+                    sourceFactIds: scenario.source_fact_ids || [],
+                    confidence: scenario.confidence || 'low',
+                    validationStatus: scenario.validation_status || 'ungrounded_exploratory',
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok && !data.remediation) return null;
+            if (data.mastery_summary) setMasterySummary(data.mastery_summary);
+            return data;
+        } catch (err) {
+            console.warn('Failed to submit mastery attempt:', err);
+            return null;
+        }
+    };
+
+    const requestRemediationPractice = async (remediation) => {
+        if (!masteryContext?.userId || !masteryContext?.topic || !remediation) return;
+
+        setRemediationLoading(true);
+        try {
+            const res = await fetch(`${API_BASE}/mastery/remediation-practice`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId: masteryContext.userId,
+                    topic: masteryContext.topic,
+                    nodeLabel: selectedNode?.label || 'overall',
+                    concepts: remediation.focus_concepts || selectedNode?.key_concepts || [],
+                    skill_level: masteryContext.skillLevel || 'beginner',
+                }),
+            });
+            if (!res.ok) return;
+            const data = await res.json();
+            setRemediationPractice(data);
+        } catch (err) {
+            console.warn('Failed to generate remediation practice:', err);
+        } finally {
+            setRemediationLoading(false);
+        }
+    };
+
     if (loading) {
         return (
             <div className="space-y-4">
@@ -220,8 +477,31 @@ const PracticePanel = ({ practiceData, loading, selectedNode }) => {
                     </span>
                 </div>
             )}
+            <PracticeGroundingSummary summary={practiceData.grounding_summary} />
+            <MasterySummary summary={masterySummary} />
             {practiceData.practice_title && (
                 <h3 className="text-white font-bold text-base">{practiceData.practice_title}</h3>
+            )}
+            {remediationLoading && (
+                <div className="rounded-2xl border border-blue-500/20 bg-blue-500/10 p-4 text-[11px] font-black uppercase tracking-widest text-blue-300">
+                    Generating remediation drill...
+                </div>
+            )}
+            {remediationPractice?.scenarios?.length > 0 && (
+                <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4">
+                    <h3 className="text-blue-200 font-bold text-sm mb-3">{remediationPractice.practice_title || 'Remediation Drill'}</h3>
+                    <div className="space-y-4">
+                        {remediationPractice.scenarios.map((scenario, i) => (
+                            <div key={scenario.id || i} className="rounded-xl border border-blue-500/10 bg-gray-900/40 p-4">
+                                <MultipleChoice
+                                    scenario={scenario}
+                                    onAttempt={submitAttempt}
+                                    onRequestRemediation={requestRemediationPractice}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                </div>
             )}
             {practiceData.scenarios.map((scenario, i) => (
                 <motion.div
@@ -238,13 +518,35 @@ const PracticePanel = ({ practiceData, loading, selectedNode }) => {
                             {(scenario.type || '').replace('_', ' ')}
                         </span>
                         <DifficultyBadge difficulty={scenario.difficulty} />
+                        <GroundingBadge scenario={scenario} />
                         <span className="text-gray-600 text-[10px] ml-auto">#{i + 1}</span>
                     </div>
 
                     {/* Scenario Content */}
-                    {scenario.type === 'multiple_choice' && <MultipleChoice scenario={scenario} />}
-                    {scenario.type === 'scenario' && <ScenarioBased scenario={scenario} />}
-                    {scenario.type === 'code_challenge' && <CodeChallenge scenario={scenario} />}
+                    {scenario.type === 'multiple_choice' && (
+                        <MultipleChoice
+                            scenario={scenario}
+                            onAttempt={submitAttempt}
+                            onRequestRemediation={requestRemediationPractice}
+                        />
+                    )}
+                    {scenario.type === 'scenario' && (
+                        <ScenarioBased
+                            scenario={scenario}
+                            onAttempt={submitAttempt}
+                            onRequestRemediation={requestRemediationPractice}
+                        />
+                    )}
+                    {scenario.type === 'code_challenge' && (
+                        <CodeChallenge
+                            scenario={scenario}
+                            onAttempt={submitAttempt}
+                            onRequestRemediation={requestRemediationPractice}
+                        />
+                    )}
+                    <div className="mt-3">
+                        <SourceEvidence scenario={scenario} facts={practiceData.source_facts} />
+                    </div>
                 </motion.div>
             ))}
         </div>

@@ -1,12 +1,13 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, X, CheckCircle, AlertCircle, Loader2, Trash2 } from 'lucide-react';
+import { Upload, X, CheckCircle, AlertCircle, Loader2, Trash2, Link } from 'lucide-react';
 import { API_BASE } from '../config/api';
 
 const FILE_ICONS = {
     'application/pdf': '📄',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '📝',
     'text/plain': '📃',
+    'text/html': '🔗',
 };
 
 const DocumentUpload = ({ userId, documents = [], onDocumentsChange }) => {
@@ -15,6 +16,7 @@ const DocumentUpload = ({ userId, documents = [], onDocumentsChange }) => {
     const [error, setError] = useState(null);
     const [dragOver, setDragOver] = useState(false);
     const [category, setCategory] = useState('source');
+    const [urlValue, setUrlValue] = useState('');
     const fileInputRef = useRef(null);
 
     const handleUpload = useCallback(async (file) => {
@@ -68,9 +70,66 @@ const DocumentUpload = ({ userId, documents = [], onDocumentsChange }) => {
         }
     }, [userId, category, onDocumentsChange]);
 
+    const handleUrlIngest = useCallback(async () => {
+        const cleanUrl = urlValue.trim();
+        if (!cleanUrl) return;
+        if (!userId) {
+            setError('Please log in to ingest URLs.');
+            return;
+        }
+
+        setUploading(true);
+        setError(null);
+        setUploadProgress('Checking URL permissions...');
+
+        try {
+            const res = await fetch(`${API_BASE}/ingest-url-job`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, url: cleanUrl, category }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(data.access?.access_reason || data.error || 'URL ingestion failed');
+            }
+
+            const jobId = data.job?.id;
+            if (!jobId) throw new Error('URL ingestion job did not start.');
+
+            setUploadProgress('Indexing URL in background...');
+            let finalJob = data.job;
+            for (let i = 0; i < 30; i++) {
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                const poll = await fetch(`${API_BASE}/ingest-url-job/${jobId}`);
+                const pollData = await poll.json().catch(() => ({}));
+                finalJob = pollData.job || finalJob;
+                if (['complete', 'duplicate', 'failed'].includes(finalJob?.status)) break;
+                setUploadProgress(`Indexing URL... ${finalJob?.status || 'processing'}`);
+            }
+
+            if (finalJob?.status === 'failed') {
+                throw new Error(finalJob.error?.message || 'URL ingestion failed');
+            }
+
+            setUrlValue('');
+            if (finalJob?.status === 'duplicate') {
+                setUploadProgress('Already indexed.');
+            } else {
+                setUploadProgress(`Done! ${finalJob?.result?.document?.chunkCount || 0} URL sections indexed.`);
+            }
+            if (onDocumentsChange) onDocumentsChange();
+            setTimeout(() => setUploadProgress(''), 3000);
+        } catch (err) {
+            setError(err.message);
+            setUploadProgress('');
+        } finally {
+            setUploading(false);
+        }
+    }, [userId, urlValue, category, onDocumentsChange]);
+
     const handleDelete = async (docId) => {
         try {
-            await fetch(`${API_BASE}/document/${docId}`, { method: 'DELETE' });
+            await fetch(`${API_BASE}/document/${docId}?userId=${encodeURIComponent(userId)}`, { method: 'DELETE' });
             if (onDocumentsChange) onDocumentsChange();
         } catch {
             setError('Failed to delete document.');
@@ -154,6 +213,37 @@ const DocumentUpload = ({ userId, documents = [], onDocumentsChange }) => {
                 )}
             </div>
 
+            <div className="rounded-xl border border-gray-700/40 bg-gray-800/25 p-3">
+                <div className="flex items-center gap-2">
+                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-blue-500/10 border border-blue-500/20">
+                        <Link className="w-3.5 h-3.5 text-blue-400" />
+                    </div>
+                    <input
+                        type="url"
+                        value={urlValue}
+                        onChange={(e) => setUrlValue(e.target.value)}
+                        placeholder="Paste an article or documentation URL"
+                        disabled={uploading}
+                        className="min-w-0 flex-1 bg-transparent text-xs text-gray-200 placeholder:text-gray-600 outline-none"
+                    />
+                    <button
+                        type="button"
+                        onClick={handleUrlIngest}
+                        disabled={uploading || !urlValue.trim()}
+                        className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
+                            urlValue.trim() && !uploading
+                                ? 'bg-blue-500/20 text-blue-300 hover:bg-blue-500/30'
+                                : 'bg-gray-800 text-gray-600'
+                        }`}
+                    >
+                        Ingest
+                    </button>
+                </div>
+                <p className="mt-2 text-[10px] text-gray-600">
+                    URLs are checked for access before text is indexed.
+                </p>
+            </div>
+
             {/* Error */}
             <AnimatePresence>
                 {error && (
@@ -186,6 +276,7 @@ const DocumentUpload = ({ userId, documents = [], onDocumentsChange }) => {
                                 <p className="text-[11px] text-gray-300 truncate">{doc.filename}</p>
                                 <p className="text-[9px] text-gray-600">
                                     <span className={doc.category === 'context' ? 'text-purple-400' : 'text-blue-400'}>{doc.category === 'context' ? 'Context' : 'Source'}</span> • {doc.chunkCount} chunks
+                                    {doc.sourceType === 'url' && ' • URL'}
                                     {doc.status === 'processing' && ' • Processing...'}
                                 </p>
                             </div>

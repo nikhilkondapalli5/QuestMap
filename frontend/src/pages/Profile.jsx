@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Compass, User, BookOpen, Target, Sparkles, ArrowRight, LogOut, History, Globe } from 'lucide-react';
+import { Compass, User, BookOpen, Target, Sparkles, ArrowRight, LogOut, History, Globe, GitBranch } from 'lucide-react';
 import { auth } from '../firebase';
 import { signOut } from 'firebase/auth';
 import LoadingState from '../components/LoadingState';
@@ -17,9 +17,50 @@ const SKILL_LEVELS = [
     { value: 'advanced', label: 'Advanced', desc: 'Looking to master', color: 'from-red-500 to-rose-600', icon: '🚀' },
 ];
 
+const LEARNING_SOURCES = [
+    { value: 'topic', label: 'Topic', icon: BookOpen },
+    { value: 'repo', label: 'GitHub Repo', icon: GitBranch },
+];
+
+const SEARCH_HISTORY_KEY = 'questmap_search_history';
+const MAX_SEARCH_HISTORY = 12;
+
+const normalizeSuggestionValue = (value) => String(value || '').trim();
+
+const getStoredSearchHistory = () => {
+    try {
+        const parsed = JSON.parse(localStorage.getItem(SEARCH_HISTORY_KEY) || '[]');
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+};
+
+const saveSearchHistoryItem = (item) => {
+    const value = normalizeSuggestionValue(item.value);
+    if (!value) return;
+
+    const nextItem = {
+        source_type: item.source_type || 'topic',
+        value,
+        skill_level: item.skill_level || 'beginner',
+        updated_at: new Date().toISOString(),
+    };
+
+    const existing = getStoredSearchHistory();
+    const deduped = existing.filter(entry => (
+        entry?.source_type !== nextItem.source_type ||
+        normalizeSuggestionValue(entry?.value).toLowerCase() !== value.toLowerCase()
+    ));
+
+    localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify([nextItem, ...deduped].slice(0, MAX_SEARCH_HISTORY)));
+};
+
 const Profile = () => {
     const navigate = useNavigate();
+    const [learningSource, setLearningSource] = useState('topic');
     const [topic, setTopic] = useState('');
+    const [repoUrl, setRepoUrl] = useState('');
     const [skillLevel, setSkillLevel] = useState('beginner');
     const [background, setBackground] = useState('');
     const [goals, setGoals] = useState('');
@@ -29,6 +70,12 @@ const Profile = () => {
     const [loadingHistory, setLoadingHistory] = useState(false);
     const [showHistory, setShowHistory] = useState(false);
     const [documents, setDocuments] = useState([]);
+    const [searchHistory, setSearchHistory] = useState([]);
+    const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
+
+    useEffect(() => {
+        setSearchHistory(getStoredSearchHistory());
+    }, []);
 
     const fetchDocuments = useCallback(async (uid) => {
         try {
@@ -117,22 +164,100 @@ const Profile = () => {
 
     const handleSubmit = async (e) => {
         if (e) e.preventDefault();
-        if (!topic.trim()) return;
+        if (learningSource === 'topic' && !topic.trim()) return;
+        if (learningSource === 'repo' && !repoUrl.trim()) return;
 
         setIsSubmitting(true);
 
         const profileData = {
-            topic: topic.trim(),
+            source_type: learningSource,
+            topic: learningSource === 'repo' ? repoUrl.trim() : topic.trim(),
+            repo_url: learningSource === 'repo' ? repoUrl.trim() : '',
             skill_level: skillLevel,
             background: background.trim(),
             goals: goals.trim(),
         };
+        sessionStorage.removeItem('questmap_dashboard_cache');
+        sessionStorage.removeItem('questmap_cached_data');
+        sessionStorage.removeItem('questmap_node_cache');
         sessionStorage.setItem('questmap_profile', JSON.stringify(profileData));
+        saveSearchHistoryItem({
+            source_type: learningSource,
+            value: learningSource === 'repo' ? repoUrl.trim() : topic.trim(),
+            skill_level: skillLevel,
+        });
+        setSearchHistory(getStoredSearchHistory());
 
         navigate('/dashboard');
     };
 
-    const isValid = topic.trim().length > 0;
+    const isRepoMode = learningSource === 'repo';
+    const isValid = isRepoMode ? repoUrl.trim().length > 0 : topic.trim().length > 0;
+    const activeSearchValue = isRepoMode ? repoUrl : topic;
+    const sourceSuggestions = useMemo(() => {
+        const suggestions = [];
+        const seen = new Set();
+        const addSuggestion = ({ value, source_type, skill_level, label }) => {
+            const normalizedValue = normalizeSuggestionValue(value);
+            const normalizedType = source_type || 'topic';
+            if (!normalizedValue || normalizedType !== learningSource) return;
+
+            const key = `${normalizedType}:${normalizedValue.toLowerCase()}`;
+            if (seen.has(key)) return;
+            seen.add(key);
+            suggestions.push({
+                value: normalizedValue,
+                source_type: normalizedType,
+                skill_level: skill_level || 'beginner',
+                label: label || (normalizedType === 'repo' ? 'Repository' : 'Previous topic'),
+            });
+        };
+
+        searchHistory.forEach(entry => addSuggestion({
+            value: entry.value,
+            source_type: entry.source_type,
+            skill_level: entry.skill_level,
+            label: 'Recent search',
+        }));
+
+        try {
+            const storedProfile = JSON.parse(sessionStorage.getItem('questmap_profile') || 'null');
+            if (storedProfile) {
+                addSuggestion({
+                    value: storedProfile.source_type === 'repo' ? storedProfile.repo_url || storedProfile.topic : storedProfile.topic,
+                    source_type: storedProfile.source_type || 'topic',
+                    skill_level: storedProfile.skill_level,
+                    label: 'Last profile',
+                });
+            }
+        } catch {
+            // Ignore malformed session data.
+        }
+
+        quests.forEach(quest => addSuggestion({
+            value: quest?.profileData?.source_type === 'repo'
+                ? quest?.profileData?.repo_url || quest.topic
+                : quest.topic,
+            source_type: quest?.profileData?.source_type || 'topic',
+            skill_level: quest.skillLevel,
+            label: 'Saved quest',
+        }));
+
+        const filter = activeSearchValue.trim().toLowerCase();
+        return suggestions
+            .filter(item => !filter || item.value.toLowerCase().includes(filter))
+            .slice(0, 6);
+    }, [activeSearchValue, learningSource, quests, searchHistory]);
+
+    const handleSuggestionSelect = (suggestion) => {
+        if (suggestion.source_type === 'repo') {
+            setRepoUrl(suggestion.value);
+        } else {
+            setTopic(suggestion.value);
+        }
+        if (suggestion.skill_level) setSkillLevel(suggestion.skill_level);
+        setShowSearchSuggestions(false);
+    };
 
     return (
         <>
@@ -148,7 +273,7 @@ const Profile = () => {
                             <div className="flex flex-col items-center justify-center h-full">
                                 <LoadingState
                                     message="Synthesizing Knowledge Mesh"
-                                    subMessage={`Analyzing neural pathways for ${topic}...`}
+                                    subMessage={isRepoMode ? 'Analyzing repository concept signals...' : `Analyzing neural pathways for ${topic}...`}
                                 />
                             </div>
                         </TubesBackground>
@@ -219,21 +344,100 @@ const Profile = () => {
                         </div>
 
                         <div className="space-y-10">
+                            <div className="space-y-4">
+                                <label className="flex items-center gap-3 text-[11px] font-black text-blue-400 uppercase tracking-[0.3em] font-outfit">
+                                    <Sparkles className="w-4 h-4" />
+                                    Learning Source
+                                </label>
+                                <div className="grid grid-cols-2 gap-4">
+                                    {LEARNING_SOURCES.map((source) => {
+                                        const Icon = source.icon;
+                                        const active = learningSource === source.value;
+                                        return (
+                                            <button
+                                                key={source.value}
+                                                type="button"
+                                                onClick={() => setLearningSource(source.value)}
+                                                className={`rounded-[1.5rem] border p-4 text-left transition-all ${
+                                                    active
+                                                        ? 'border-blue-500/50 bg-blue-500/10 shadow-[0_0_30px_rgba(59,130,246,0.16)]'
+                                                        : 'border-white/5 bg-white/5 hover:border-white/20'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <Icon className={active ? 'w-4 h-4 text-blue-400' : 'w-4 h-4 text-white/30'} />
+                                                    <span className="text-[11px] font-black uppercase tracking-widest text-white">{source.label}</span>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
                             <div className="space-y-4 group">
                                 <label className="flex items-center gap-3 text-[11px] font-black text-blue-400 uppercase tracking-[0.3em] font-outfit">
-                                    <BookOpen className="w-4 h-4" />
-                                    Knowledge Domain
+                                    {isRepoMode ? <GitBranch className="w-4 h-4" /> : <BookOpen className="w-4 h-4" />}
+                                    {isRepoMode ? 'GitHub Repository' : 'Knowledge Domain'}
                                 </label>
                                 <div className="relative">
                                     <input
-                                        type="text"
-                                        value={topic}
-                                        onChange={(e) => setTopic(e.target.value)}
-                                        placeholder="What domain will you conquer today?"
-                                        className="w-full bg-white/5 border border-white/10 rounded-3xl py-6 px-10 text-lg text-white font-medium placeholder:text-gray-700 focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/50 outline-none transition-all duration-300"
+                                        type={isRepoMode ? 'url' : 'text'}
+                                        value={isRepoMode ? repoUrl : topic}
+                                        onChange={(e) => {
+                                            if (isRepoMode) setRepoUrl(e.target.value);
+                                            else setTopic(e.target.value);
+                                            setShowSearchSuggestions(true);
+                                        }}
+                                        onFocus={() => setShowSearchSuggestions(true)}
+                                        onBlur={() => window.setTimeout(() => setShowSearchSuggestions(false), 120)}
+                                        placeholder={isRepoMode ? 'https://github.com/org/repo' : 'What domain will you conquer today?'}
+                                        autoComplete="off"
+                                        className="w-full bg-white/5 border border-white/10 rounded-3xl py-6 px-10 pr-16 text-lg text-white font-medium placeholder:text-gray-700 focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/50 outline-none transition-all duration-300"
                                         required
                                     />
                                     <div className="absolute right-8 top-1/2 -translate-y-1/2 w-3 h-3 bg-blue-500 rounded-full blur-[2px] animate-pulse" />
+                                    <AnimatePresence>
+                                        {showSearchSuggestions && sourceSuggestions.length > 0 && (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                                                transition={{ duration: 0.16 }}
+                                                className="absolute left-0 right-0 top-[calc(100%+0.75rem)] z-40 overflow-hidden rounded-3xl border border-white/10 bg-[#101014]/95 shadow-2xl shadow-black/40 backdrop-blur-2xl"
+                                            >
+                                                <div className="max-h-72 overflow-y-auto p-2 custom-scrollbar">
+                                                    {sourceSuggestions.map((suggestion) => {
+                                                        const SuggestionIcon = suggestion.source_type === 'repo' ? GitBranch : BookOpen;
+                                                        return (
+                                                            <button
+                                                                key={`${suggestion.source_type}:${suggestion.value}`}
+                                                                type="button"
+                                                                onMouseDown={(event) => {
+                                                                    event.preventDefault();
+                                                                    handleSuggestionSelect(suggestion);
+                                                                }}
+                                                                className="w-full rounded-2xl px-4 py-3 text-left transition-colors hover:bg-white/10 focus:bg-white/10 focus:outline-none"
+                                                            >
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl bg-blue-500/10 border border-blue-500/20">
+                                                                        <SuggestionIcon className="h-4 w-4 text-blue-300" />
+                                                                    </div>
+                                                                    <div className="min-w-0 flex-1">
+                                                                        <p className="truncate text-sm font-bold text-white">{suggestion.value}</p>
+                                                                        <div className="mt-1 flex items-center gap-2">
+                                                                            <span className="text-[9px] font-black uppercase tracking-widest text-white/35">{suggestion.label}</span>
+                                                                            <span className="h-1 w-1 rounded-full bg-white/20" />
+                                                                            <span className="text-[9px] font-black uppercase tracking-widest text-blue-300/80">{suggestion.skill_level}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
                                 </div>
                             </div>
 
@@ -384,7 +588,7 @@ const Profile = () => {
                                             animate={{ opacity: 1 }}
                                             className="flex items-center gap-4"
                                         >
-                                            Generate neural map
+                                            {isRepoMode ? 'Analyze repository' : 'Generate neural map'}
                                             <ArrowRight className="w-5 h-5 group-hover:translate-x-3 transition-transform duration-300" />
                                         </motion.div>
                                     )}

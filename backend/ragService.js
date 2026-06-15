@@ -204,6 +204,22 @@ async function storeDocumentChunks(userId, documentId, chunks, filename, categor
     return vectors.length;
 }
 
+async function deleteDocumentVectors(documentId, chunkCount = 0) {
+    if (!documentId || !chunkCount) return 0;
+    if (!pineconeIndex) await initRAG();
+
+    const ids = Array.from({ length: chunkCount }, (_, index) => `doc_${documentId}_chunk_${index}`);
+    let deleted = 0;
+
+    for (let i = 0; i < ids.length; i += 100) {
+        const batch = ids.slice(i, i + 100);
+        await pineconeIndex.namespace('documents').deleteMany({ ids: batch });
+        deleted += batch.length;
+    }
+
+    return deleted;
+}
+
 /**
  * Retrieve relevant context from Pinecone for a given query.
  * Searches both sessions and documents for the user.
@@ -295,6 +311,98 @@ async function retrieveCategorizedContext(userId, query, topK = 10) {
     }
 }
 
+async function storeRepoCodeBlockEmbeddings(blocks = []) {
+    if (!blocks.length) return 0;
+    if (!pineconeIndex) await initRAG();
+
+    const limit = 15;
+    const vectors = [];
+    
+    const tasks = blocks.map(block => async () => {
+        if (!block.vectorId) return;
+        try {
+            const embeddingText = [
+                block.summary || (block.snippet ? block.snippet.slice(0, 1000) : ''),
+                block.symbolName,
+                block.filePath,
+                block.language,
+                block.blockType,
+            ].filter(Boolean).join('\n');
+            const embedding = await generateEmbedding(embeddingText);
+            vectors.push({
+                id: block.vectorId,
+                values: embedding,
+                metadata: {
+                    userId: block.userId,
+                    repoFullName: block.repoFullName,
+                    commitSha: block.commitSha,
+                    blockId: String(block._id || block.blockId || ''),
+                    fileId: String(block.fileId || ''),
+                    filePath: block.filePath,
+                    startLine: Number(block.startLine || 1),
+                    endLine: Number(block.endLine || 1),
+                    symbolName: block.symbolName || 'module',
+                    language: block.language || 'text',
+                    blockType: block.blockType || 'block',
+                    summary: block.summary,
+                    timestamp: new Date().toISOString(),
+                },
+            });
+        } catch (err) {
+            console.warn(`Failed to embed repo code block ${block.symbolName || block.filePath}:`, err.message);
+        }
+    });
+
+    const executing = new Set();
+    for (const task of tasks) {
+        const p = Promise.resolve().then(() => task());
+        executing.add(p);
+        const clean = () => executing.delete(p);
+        p.then(clean, clean);
+        if (executing.size >= limit) {
+            await Promise.race(executing);
+        }
+    }
+    await Promise.all(executing);
+
+    for (let i = 0; i < vectors.length; i += 100) {
+        await pineconeIndex.namespace('repo_code').upsert({ records: vectors.slice(i, i + 100) });
+    }
+
+    return vectors.length;
+}
+
+async function retrieveRepoCodeMatches({ userId, repoFullName, commitSha, query, topK = 3, minScore = 0.6 }) {
+    if (!query) return [];
+
+    try {
+        if (!pineconeIndex) await initRAG();
+        const queryEmbedding = await generateEmbedding(query);
+        const filter = {
+            userId: { $eq: userId },
+            repoFullName: { $eq: repoFullName },
+        };
+        if (commitSha) filter.commitSha = { $eq: commitSha };
+
+        const results = await pineconeIndex.namespace('repo_code').query({
+            vector: queryEmbedding,
+            topK,
+            includeMetadata: true,
+            filter,
+        });
+
+        return (results.matches || [])
+            .filter(match => match.score >= minScore)
+            .map(match => ({
+                score: match.score,
+                ...(match.metadata || {}),
+            }));
+    } catch (err) {
+        console.warn('Repo code retrieval failed:', err.message);
+        return [];
+    }
+}
+
 /**
  * Format retrieved context into a prompt section.
  */
@@ -324,7 +432,10 @@ module.exports = {
     chunkText,
     storeSessionContext,
     storeDocumentChunks,
+    deleteDocumentVectors,
     retrieveRelevantContext,
     retrieveCategorizedContext,
+    storeRepoCodeBlockEmbeddings,
+    retrieveRepoCodeMatches,
     formatRAGContext,
 };

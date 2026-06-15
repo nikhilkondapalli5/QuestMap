@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle, Circle, Play, Lock, Clock, ChevronDown, ChevronRight, Sparkles, Target } from 'lucide-react';
+import { CheckCircle, Circle, Play, Lock, Clock, ChevronDown, ChevronRight, Sparkles, Target, AlertTriangle } from 'lucide-react';
 
 const STATUS_CONFIG = {
     completed: {
@@ -54,6 +54,12 @@ const DIFFICULTY_COLORS = {
     beginner: 'text-green-400 bg-green-500/10 border-green-500/20',
     intermediate: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20',
     advanced: 'text-red-400 bg-red-500/10 border-red-500/20',
+};
+
+const CONFIDENCE_STYLES = {
+    high: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
+    medium: 'border-amber-500/30 bg-amber-500/10 text-amber-300',
+    low: 'border-gray-600/40 bg-gray-800/40 text-gray-400',
 };
 
 /**
@@ -139,6 +145,12 @@ const NodeCard = ({ node, isSelected, onSelect, index }) => {
                     <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${config.text} ${config.bg} ${config.border}`}>
                         {config.label}
                     </span>
+                    {node.remediation_required && (
+                        <span className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-300">
+                            <AlertTriangle className="w-2.5 h-2.5" />
+                            Review
+                        </span>
+                    )}
                 </div>
 
                 {/* Expanded details when selected */}
@@ -240,6 +252,46 @@ const StageSection = ({ stage, stageIndex, selectedNode, onNodeSelect, totalStag
     );
 };
 
+const RepoOverview = ({ mapData }) => {
+    const summary = mapData?.repo_summary;
+    if (!summary?.plain_english && !summary?.project_type) return null;
+
+    const stack = Array.isArray(mapData?.detected_stack) ? mapData.detected_stack.slice(0, 15) : [];
+    const confidence = summary?.confidence || 'medium';
+
+    return (
+        <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4">
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-blue-300">Repository Overview</p>
+                    <h3 className="mt-1 truncate text-sm font-bold text-white">
+                        {summary.project_type || mapData?.topic || 'GitHub repository'}
+                    </h3>
+                </div>
+                <span className={`flex-shrink-0 rounded-full border px-2 py-1 text-[10px] font-black uppercase ${CONFIDENCE_STYLES[confidence] || CONFIDENCE_STYLES.medium}`}>
+                    {confidence}
+                </span>
+            </div>
+
+            {summary.plain_english && (
+                <p className="mt-2 text-xs leading-relaxed text-gray-400">
+                    {summary.plain_english}
+                </p>
+            )}
+
+            {stack.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                    {stack.map(item => (
+                        <span key={item} className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-bold text-gray-300">
+                            {item}
+                        </span>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
 // ─── Main Component ─────────────────────────────────────────────────────────
 
 const LearningPathMap = ({ mapData, selectedNode, onNodeSelect }) => {
@@ -283,6 +335,7 @@ const LearningPathMap = ({ mapData, selectedNode, onNodeSelect }) => {
 
             {/* Scrollable path */}
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
+                <RepoOverview mapData={mapData} />
                 {stages.map((stage, i) => (
                     <StageSection
                         key={i}
