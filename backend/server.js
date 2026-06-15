@@ -2228,7 +2228,7 @@ app.post('/api/repo/analyze', async (req, res) => {
                 status: 'ready'
             }).sort({ createdAt: -1 }).lean();
 
-            if (existing) {
+            if (existing && existing.codeIngestion?.status !== 'failed') {
                 console.log(`[Repo Analysis] Cache HIT for user ${userId}, repo ${repoUrl}, returning saved analysis.`);
                 return res.json({
                     id: existing._id,
