@@ -833,7 +833,7 @@ async function ingestRepoCodeEvidence({ userId, repo, sourceFiles = [], callLlm 
                             defaultBranch: repo.defaultBranch,
                             commitSha: repo.commitSha,
                             fileId: repoFile._id,
-                            filePath: sourceFile.path,
+                            filePath: repoFile.filePath,
                             language: block.language,
                             blockType: block.blockType,
                             symbolName: block.symbolName,
@@ -859,7 +859,7 @@ async function ingestRepoCodeEvidence({ userId, repo, sourceFiles = [], callLlm 
                     savedBlock = {
                         _id: 'mock_block_id_' + blockHash.slice(0, 12),
                         fileId: repoFile._id,
-                        filePath: sourceFile.path,
+                        filePath: repoFile.filePath,
                         language: block.language,
                         blockType: block.blockType,
                         symbolName: block.symbolName,
