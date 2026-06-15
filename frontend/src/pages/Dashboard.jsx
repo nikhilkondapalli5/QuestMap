@@ -172,6 +172,7 @@ const Dashboard = () => {
         return DEFAULT_PANEL_WIDTH;
     });
     const [isResizingPanel, setIsResizingPanel] = useState(false);
+    const [isPanelMaximized, setIsPanelMaximized] = useState(false);
     const [theme, setTheme] = useState(() => sessionStorage.getItem('questmap_theme') || 'dark');
     const isLightTheme = theme === 'light';
 
@@ -576,7 +577,7 @@ const Dashboard = () => {
                 : 'Prioritizing objectives to bridge systemic knowledge gaps';
 
         return (
-            <div className="min-h-screen bg-black text-white flex items-center justify-center">
+            <div className="min-h-screen bg-[#0a0b10] text-white flex items-center justify-center">
                 <TubesBackground className="w-full h-full flex items-center justify-center" enableClickInteraction={false}>
                     <div className="flex flex-col items-center justify-center h-full">
                         <LoadingState message={msg} subMessage={sub} />
@@ -588,7 +589,7 @@ const Dashboard = () => {
 
     if (error && !initialLoadComplete) {
         return (
-            <div className="min-h-screen bg-black text-white flex items-center justify-center p-6">
+            <div className="min-h-screen bg-[#0a0b10] text-white flex items-center justify-center p-6">
                 <div className="max-w-md text-center">
                     <div className="text-red-400 text-5xl mb-4 font-outfit uppercase">System Failure</div>
                     <h2 className="text-xl font-black mb-2 uppercase tracking-tighter">Neural Lattice Collapse</h2>
@@ -607,71 +608,73 @@ const Dashboard = () => {
     }
 
     return (
-        <div className={`h-screen flex flex-col overflow-hidden selection:bg-blue-500/30 font-sans ${isLightTheme ? 'quest-theme-light bg-slate-100 text-gray-950' : 'bg-[#000000] text-white'}`}>
+        <div className={`h-screen flex flex-col overflow-hidden selection:bg-blue-500/30 font-sans ${isLightTheme ? 'quest-theme-light bg-[#f0f2f5] text-gray-950' : 'bg-[#0a0b10] text-white'}`}>
             {/* Top Bar - Glassmorphism */}
-            <header className={`flex-shrink-0 border-b px-8 py-4 backdrop-blur-xl z-50 ${isLightTheme ? 'border-gray-200 bg-white/80' : 'border-white/5 bg-black/40'}`}>
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-6">
-                        <div className="flex items-center gap-3">
-                            <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-2 rounded-xl shadow-lg shadow-blue-500/20">
-                                <Compass className="w-5 h-5 text-white" />
+            {!isPanelMaximized && (
+                <header className={`flex-shrink-0 border-b px-8 py-4 backdrop-blur-xl z-50 ${isLightTheme ? 'border-gray-200 bg-[#f8fafc]/80' : 'border-white/5 bg-[#11131a]/60'}`}>
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-6">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-2 rounded-xl shadow-lg shadow-blue-500/20">
+                                    <Compass className="w-5 h-5 text-white" />
+                                </div>
+                                <span className={cn("text-lg font-black tracking-tighter uppercase font-outfit", isLightTheme ? "text-gray-950" : "text-white")}>QuestMap.AI</span>
                             </div>
-                            <span className={cn("text-lg font-black tracking-tighter uppercase font-outfit", isLightTheme ? "text-gray-950" : "text-white")}>QuestMap.AI</span>
-                        </div>
-                        <div className={cn("h-6 w-px", isLightTheme ? "bg-gray-200" : "bg-white/10")} />
-                        <div className={cn("flex items-center gap-3 px-4 py-1.5 rounded-full border", isLightTheme ? "bg-gray-100 border-gray-200" : "bg-white/5 border-white/10")}>
-                            <Brain className="w-4 h-4 text-purple-400" />
-                            <span className={cn("text-[11px] font-black uppercase tracking-widest max-w-[200px] truncate", isLightTheme ? "text-gray-700" : "text-gray-300")}>{dashboardTitle}</span>
-                        </div>
-                        <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.2em] border ${profile.skill_level === 'beginner' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
-                            profile.skill_level === 'intermediate' ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' :
-                                'bg-red-500/10 text-red-400 border-red-500/20'
-                            }`}>
-                            Tier: {profile.skill_level}
-                        </span>
-                    </div>
-                    <div className="flex items-center gap-6">
-                        {profileData && (
-                            <div className="hidden lg:flex items-center gap-6 text-[10px] font-black uppercase tracking-widest text-gray-500">
-                                <span className="flex items-center gap-2">
-                                    <Clock className="w-3.5 h-3.5 text-blue-400" />
-                                    {profileData.estimated_total_hours || mapData?.total_estimated_hours || '?'}H TOTAL
-                                </span>
-                                <span className="flex items-center gap-2">
-                                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                                    {profileData.recommended_pace} PACE
-                                </span>
+                            <div className={cn("h-6 w-px", isLightTheme ? "bg-gray-200" : "bg-white/10")} />
+                            <div className={cn("flex items-center gap-3 px-4 py-1.5 rounded-full border", isLightTheme ? "bg-gray-100 border-gray-200" : "bg-white/5 border-white/10")}>
+                                <Brain className="w-4 h-4 text-purple-400" />
+                                <span className={cn("text-[11px] font-black uppercase tracking-widest max-w-[200px] truncate", isLightTheme ? "text-gray-700" : "text-gray-300")}>{dashboardTitle}</span>
                             </div>
-                        )}
-                        <button
-                            type="button"
-                            onClick={handleThemeToggle}
-                            className={cn(
-                                "h-9 w-[76px] rounded-full border p-1 transition-colors flex items-center",
-                                isLightTheme ? "bg-gray-100 border-gray-300 justify-end" : "bg-white/5 border-white/10 justify-start"
-                            )}
-                            aria-label="Toggle light or dark theme"
-                            aria-pressed={isLightTheme}
-                        >
-                            <span className={cn(
-                                "h-7 w-7 rounded-full flex items-center justify-center shadow-sm transition-colors",
-                                isLightTheme ? "bg-white text-amber-500" : "bg-gray-800 text-blue-300"
-                            )}>
-                                {isLightTheme ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+                            <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.2em] border ${profile.skill_level === 'beginner' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
+                                profile.skill_level === 'intermediate' ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' :
+                                    'bg-red-500/10 text-red-400 border-red-500/20'
+                                }`}>
+                                Tier: {profile.skill_level}
                             </span>
-                        </button>
-                        <button onClick={() => navigate('/quiz')} className="px-4 py-2 rounded-xl bg-blue-500/20 border border-blue-500/30 hover:bg-blue-500/40 text-[10px] font-black uppercase tracking-widest text-blue-300 hover:text-white transition-all">
-                            Test Mastery
-                        </button>
-                        <button onClick={handleNewTopic} className={cn("px-4 py-2 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all", isLightTheme ? "bg-gray-100 border-gray-200 hover:bg-gray-200 text-gray-600 hover:text-gray-950" : "bg-white/5 border-white/10 hover:bg-white/10 text-white/60 hover:text-white")}>
-                            Change Mesh
-                        </button>
-                        <button onClick={handleLogout} className={cn("p-2 transition-colors", isLightTheme ? "text-gray-400 hover:text-gray-700" : "text-white/20 hover:text-white/60")}>
-                            <LogOut className="w-5 h-5" />
-                        </button>
+                        </div>
+                        <div className="flex items-center gap-6">
+                            {profileData && (
+                                <div className="hidden lg:flex items-center gap-6 text-[10px] font-black uppercase tracking-widest text-gray-500">
+                                    <span className="flex items-center gap-2">
+                                        <Clock className="w-3.5 h-3.5 text-blue-400" />
+                                        {profileData.estimated_total_hours || mapData?.total_estimated_hours || '?'}H TOTAL
+                                    </span>
+                                    <span className="flex items-center gap-2">
+                                        <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                                        {profileData.recommended_pace} PACE
+                                    </span>
+                                </div>
+                            )}
+                            <button
+                                type="button"
+                                onClick={handleThemeToggle}
+                                className={cn(
+                                    "h-9 w-[76px] rounded-full border p-1 transition-colors flex items-center",
+                                    isLightTheme ? "bg-gray-100 border-gray-300 justify-end" : "bg-white/5 border-white/10 justify-start"
+                                )}
+                                aria-label="Toggle light or dark theme"
+                                aria-pressed={isLightTheme}
+                            >
+                                <span className={cn(
+                                    "h-7 w-7 rounded-full flex items-center justify-center shadow-sm transition-colors",
+                                    isLightTheme ? "bg-white text-amber-500" : "bg-gray-800 text-blue-300"
+                                )}>
+                                    {isLightTheme ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+                                </span>
+                            </button>
+                            <button onClick={() => navigate('/quiz')} className="px-4 py-2 rounded-xl bg-blue-500/20 border border-blue-500/30 hover:bg-blue-500/40 text-[10px] font-black uppercase tracking-widest text-blue-300 hover:text-white transition-all">
+                                Test Mastery
+                            </button>
+                            <button onClick={handleNewTopic} className={cn("px-4 py-2 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all", isLightTheme ? "bg-gray-100 border-gray-200 hover:bg-gray-200 text-gray-600 hover:text-gray-950" : "bg-white/5 border-white/10 hover:bg-white/10 text-white/60 hover:text-white")}>
+                                Change Mesh
+                            </button>
+                            <button onClick={handleLogout} className={cn("p-2 transition-colors", isLightTheme ? "text-gray-400 hover:text-gray-700" : "text-white/20 hover:text-white/60")}>
+                                <LogOut className="w-5 h-5" />
+                            </button>
+                        </div>
                     </div>
-                </div>
-            </header>
+                </header>
+            )}
 
             {/* Main Content */}
             <div className="flex-1 flex overflow-hidden relative">
@@ -683,7 +686,7 @@ const Dashboard = () => {
                 </div>
 
                 {/* Left: Learning Path Map */}
-                <div className="flex-1 flex flex-col min-w-0 relative z-10">
+                <div className={cn("flex-1 flex flex-col min-w-0 relative z-10", isPanelMaximized && "hidden")}>
                     {/* Map */}
                     <div className="flex-1 overflow-hidden">
                         <LearningPathMap
@@ -696,75 +699,82 @@ const Dashboard = () => {
                     {/* Selected Node Status Bar removed per user request */}
                 </div>
 
-                <div
-                    role="separator"
-                    aria-orientation="vertical"
-                    aria-valuemin={MIN_PANEL_WIDTH}
-                    aria-valuemax={MAX_PANEL_WIDTH}
-                    aria-valuenow={Math.round(panelWidth)}
-                    onPointerDown={handlePanelResizeStart}
-                    className={cn(
-                        "hidden md:flex w-2 flex-shrink-0 items-center justify-center cursor-col-resize relative z-30 group",
-                        isLightTheme ? "bg-transparent" : "bg-transparent"
-                    )}
-                >
-                    <div className={cn(
-                        "h-14 w-1 rounded-full transition-colors",
-                        isResizingPanel
-                            ? "bg-blue-400"
-                            : isLightTheme
-                                ? "bg-gray-300 group-hover:bg-blue-400"
-                                : "bg-white/10 group-hover:bg-blue-400"
-                    )} />
-                </div>
+                {!isPanelMaximized && (
+                    <div
+                        role="separator"
+                        aria-orientation="vertical"
+                        aria-valuemin={MIN_PANEL_WIDTH}
+                        aria-valuemax={MAX_PANEL_WIDTH}
+                        aria-valuenow={Math.round(panelWidth)}
+                        onPointerDown={handlePanelResizeStart}
+                        className={cn(
+                            "hidden md:flex w-2 flex-shrink-0 items-center justify-center cursor-col-resize relative z-30 group",
+                            isLightTheme ? "bg-transparent" : "bg-transparent"
+                        )}
+                    >
+                        <div className={cn(
+                            "h-14 w-1 rounded-full transition-colors",
+                            isResizingPanel
+                                ? "bg-blue-400"
+                                : isLightTheme
+                                    ? "bg-gray-300 group-hover:bg-blue-400"
+                                    : "bg-white/10 group-hover:bg-blue-400"
+                        )} />
+                    </div>
+                )}
 
                 {/* Right: Data Expansion Panels */}
                 <div
                     className={cn(
                         "flex-shrink-0 flex flex-col backdrop-blur-3xl border-l relative z-20 max-md:w-full",
-                        isLightTheme ? "bg-white/90 border-gray-200" : "bg-black/80 border-white/5"
+                        isPanelMaximized ? "w-full flex-1 border-l-0" : "",
+                        isLightTheme ? "bg-[#f8fafc]/90 border-gray-200" : "bg-[#11131a]/85 border-white/5"
                     )}
-                    style={{ width: panelWidth }}
+                    style={isPanelMaximized ? undefined : { width: panelWidth }}
                 >
                     {/* Tab Selection */}
-                    <div className={cn("flex p-2 m-4 rounded-[1.5rem] border", isLightTheme ? "bg-gray-100 border-gray-200" : "bg-white/5 border-white/10")}>
-                        {TABS.map(tab => (
-                            <button
-                                key={tab.id}
-                                onClick={() => setActiveTab(tab.id)}
-                                className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all relative ${activeTab === tab.id ? (isLightTheme ? 'text-gray-950 shadow-sm' : 'text-white shadow-xl') : 'text-gray-500 hover:text-gray-400'
-                                    }`}
-                            >
-                                <tab.icon className={cn("w-4 h-4", activeTab === tab.id ? tab.color : "text-gray-600")} />
-                                {tab.label}
-                                {activeTab === tab.id && (
-                                    <motion.div
-                                        layoutId="tab-pill"
-                                        className={cn("absolute inset-0 rounded-2xl -z-10", isLightTheme ? "bg-white" : "bg-white/10")}
-                                        transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
-                                    />
-                                )}
-                            </button>
-                        ))}
-                    </div>
+                    {!isPanelMaximized && (
+                        <div className={cn("flex p-2 m-4 rounded-[1.5rem] border", isLightTheme ? "bg-gray-100 border-gray-200" : "bg-white/5 border-white/10")}>
+                            {TABS.map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all relative ${activeTab === tab.id ? (isLightTheme ? 'text-gray-950 shadow-sm' : 'text-white shadow-xl') : 'text-gray-500 hover:text-gray-400'
+                                        }`}
+                                >
+                                    <tab.icon className={cn("w-4 h-4", activeTab === tab.id ? tab.color : "text-gray-600")} />
+                                    {tab.label}
+                                    {activeTab === tab.id && (
+                                        <motion.div
+                                            layoutId="tab-pill"
+                                            className={cn("absolute inset-0 rounded-2xl -z-10", isLightTheme ? "bg-white" : "bg-white/10")}
+                                            transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                                        />
+                                    )}
+                                </button>
+                            ))}
+                        </div>
+                    )}
 
                     {/* Panel Title Overlay */}
-                    <div className="px-8 pb-4">
-                        <div className="flex items-center gap-3 opacity-30">
-                            {(() => {
-                                const active = TABS.find(t => t.id === activeTab) || TABS[0];
-                                return (
-                                    <>
-                                        <div className={cn("w-2 h-2 rounded-full", active.accent)} />
-                                        <span className={cn("text-[10px] font-black uppercase tracking-[0.5em]", isLightTheme ? "text-gray-600" : "")}>{active.label} Stream</span>
-                                    </>
-                                );
-                            })()}
+                    {!isPanelMaximized && (
+                        <div className="px-8 pb-4">
+                            <div className="flex items-center gap-3 opacity-30">
+                                {(() => {
+                                    const active = TABS.find(t => t.id === activeTab) || TABS[0];
+                                    return (
+                                        <>
+                                            <div className={cn("w-2 h-2 rounded-full", active.accent)} />
+                                            <span className={cn("text-[10px] font-black uppercase tracking-[0.5em]", isLightTheme ? "text-gray-600" : "")}>{active.label} Stream</span>
+                                        </>
+                                    );
+                                })()}
+                            </div>
                         </div>
-                    </div>
+                    )}
 
                     {/* Scrollable Content Area */}
-                    <div className="flex-1 overflow-y-auto px-8 pb-8 custom-scrollbar">
+                    <div className={cn("flex-1 overflow-y-auto px-8 pb-8 custom-scrollbar", isPanelMaximized && "pt-6")}>
                         <AnimatePresence mode="wait">
                             {activeTab === 'recommendations' && (
                                 <motion.div key="rec" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
@@ -809,6 +819,8 @@ const Dashboard = () => {
                                         selectedNode={selectedNode} 
                                         userId={currentUserId} 
                                         isLightTheme={isLightTheme}
+                                        isMaximized={isPanelMaximized}
+                                        onToggleMaximize={(val) => setIsPanelMaximized(typeof val === 'boolean' ? val : !isPanelMaximized)}
                                     />
                                 </motion.div>
                             )}

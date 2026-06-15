@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Youtube, BookOpen, Library, Clock, ExternalLink, Search, Play, ShieldCheck, AlertTriangle, Code, FileText, Folder, FolderOpen, ChevronDown, ChevronUp, ChevronRight, Loader2 } from 'lucide-react';
+import { Youtube, BookOpen, Library, Clock, ExternalLink, Search, Play, ShieldCheck, AlertTriangle, Code, FileText, Folder, FolderOpen, ChevronDown, ChevronUp, ChevronRight, Loader2, Columns, Maximize2, Minimize2, Sparkles, Send, X, Bot } from 'lucide-react';
 import { API_BASE } from '../config/api';
 import Prism from 'prismjs';
 import 'prismjs/components/prism-javascript';
@@ -698,7 +698,7 @@ const CodeBlockWithHighlights = ({ code, startLine = 1, highlightStart, highligh
                 }
             }
         }
-    }, [lines, firstLine, ranges, focusStartLine]);
+    }, [lines, firstLine, focusStartLine]);
 
     return (
         <pre 
@@ -738,10 +738,96 @@ const CodeBlockWithHighlights = ({ code, startLine = 1, highlightStart, highligh
     );
 };
 
-const CodeEvidencePanel = ({ selectedNode, userId }) => {
+const MarkdownText = ({ text }) => {
+    if (!text) return null;
+    const lines = text.split('\n');
+    return (
+        <div className="space-y-2 text-[11px] leading-relaxed">
+            {lines.map((line, lineIdx) => {
+                let cleanLine = line;
+                
+                // Bullet points
+                const isBullet = cleanLine.startsWith('- ') || cleanLine.startsWith('* ') || cleanLine.startsWith('• ');
+                if (isBullet) {
+                    cleanLine = cleanLine.substring(2);
+                }
+
+                // Render bold and inline code blocks
+                const parts = [];
+                let currentIndex = 0;
+                
+                const regex = /(\*\*.*?\*\*|`.*?`)/g;
+                let match;
+                while ((match = regex.exec(cleanLine)) !== null) {
+                    const matchIndex = match.index;
+                    const matchText = match[0];
+                    
+                    if (matchIndex > currentIndex) {
+                        parts.push({
+                            type: 'text',
+                            text: cleanLine.substring(currentIndex, matchIndex),
+                        });
+                    }
+                    
+                    if (matchText.startsWith('**') && matchText.endsWith('**')) {
+                        parts.push({
+                            type: 'bold',
+                            text: matchText.slice(2, -2),
+                        });
+                    } else if (matchText.startsWith('`') && matchText.endsWith('`')) {
+                        parts.push({
+                            type: 'code',
+                            text: matchText.slice(1, -1),
+                        });
+                    }
+                    
+                    currentIndex = regex.lastIndex;
+                }
+                
+                if (currentIndex < cleanLine.length) {
+                    parts.push({
+                        type: 'text',
+                        text: cleanLine.substring(currentIndex),
+                    });
+                }
+
+                const lineContent = parts.map((part, partIdx) => {
+                    if (part.type === 'bold') {
+                        return <strong key={partIdx} className="font-extrabold text-white">{part.text}</strong>;
+                    }
+                    if (part.type === 'code') {
+                        return <code key={partIdx} className="bg-emerald-500/10 border border-emerald-500/20 rounded px-1.5 py-0.5 font-mono text-[10px] text-emerald-300">{part.text}</code>;
+                    }
+                    return part.text;
+                });
+
+                if (isBullet) {
+                    return (
+                        <div key={lineIdx} className="flex gap-2 pl-3">
+                            <span className="text-emerald-400 mt-1 flex-shrink-0">•</span>
+                            <div>{lineContent}</div>
+                        </div>
+                    );
+                }
+
+                if (line.trim().startsWith('```')) {
+                    return null;
+                }
+                if (!line.trim()) {
+                    return <div key={lineIdx} className="h-1" />;
+                }
+
+                return <p key={lineIdx}>{lineContent}</p>;
+            })}
+        </div>
+    );
+};
+
+const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, onToggleMaximize }) => {
     if (!selectedNode?.repoConcept) return null;
     const references = selectedNode?.code_references || [];
     const codeFiles = selectedNode?.code_files || [];
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
     const [expanded, setExpanded] = React.useState(false);
     const [queryExpanded, setQueryExpanded] = React.useState(false);
     const [activeIndex, setActiveIndex] = React.useState(0);
@@ -750,6 +836,12 @@ const CodeEvidencePanel = ({ selectedNode, userId }) => {
     const [fullFiles, setFullFiles] = React.useState({});
     const [loadingFile, setLoadingFile] = React.useState(false);
     const [fileError, setFileError] = React.useState('');
+
+    // Code snippet explanation and follow-up states
+    const [selectionInfo, setSelectionInfo] = React.useState(null);
+    const [explainData, setExplainData] = React.useState(null);
+    const [followupText, setFollowupText] = React.useState('');
+    const [followupLoading, setFollowupLoading] = React.useState(false);
 
     // Keyword interactive search states
     const [searchResultReferences, setSearchResultReferences] = React.useState(null);
@@ -801,6 +893,51 @@ const CodeEvidencePanel = ({ selectedNode, userId }) => {
     React.useEffect(() => {
         sessionStorage.setItem('questmap_tree_width', String(treeWidth));
     }, [treeWidth]);
+
+    // Explain adjustable width states
+    const [explainWidth, setExplainWidth] = React.useState(() => {
+        const saved = Number(sessionStorage.getItem('questmap_explain_width'));
+        return Number.isFinite(saved) && saved >= 240 ? saved : 384;
+    });
+    const [isResizingExplain, setIsResizingExplain] = React.useState(false);
+
+    const handleExplainResizeStart = React.useCallback((event) => {
+        event.preventDefault();
+        setIsResizingExplain(true);
+    }, []);
+
+    React.useEffect(() => {
+        if (!isResizingExplain) return undefined;
+
+        const handlePointerMove = (event) => {
+            if (containerRef.current) {
+                const rect = containerRef.current.getBoundingClientRect();
+                // Explain panel is on the right, so dragging its left border means width is rect.right - clientX
+                const nextWidth = Math.max(240, Math.min(800, rect.right - event.clientX));
+                setExplainWidth(nextWidth);
+            }
+        };
+
+        const handlePointerUp = () => {
+            setIsResizingExplain(false);
+        };
+
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        window.addEventListener('pointermove', handlePointerMove);
+        window.addEventListener('pointerup', handlePointerUp);
+
+        return () => {
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            window.removeEventListener('pointermove', handlePointerMove);
+            window.removeEventListener('pointerup', handlePointerUp);
+        };
+    }, [isResizingExplain]);
+
+    React.useEffect(() => {
+        sessionStorage.setItem('questmap_explain_width', String(explainWidth));
+    }, [explainWidth]);
 
     const activeReferences = searchResultReferences !== null ? searchResultReferences : references;
 
@@ -855,6 +992,11 @@ const CodeEvidencePanel = ({ selectedNode, userId }) => {
         setSelectedKeyword(null);
         setLoadingKeyword(null);
         setKeywordError('');
+        
+        // Reset selection and chat states
+        setSelectionInfo(null);
+        setExplainData(null);
+        setFollowupText('');
     }, [selectedNode?.id, references, codeFiles]);
 
     React.useEffect(() => {
@@ -969,13 +1111,207 @@ const CodeEvidencePanel = ({ selectedNode, userId }) => {
             setLoadingFile(false);
         }
     };
-
     const handleToggleFullFile = async () => {
         const next = !showFullFile;
         setShowFullFile(next);
         if (next) await loadFullFile();
     };
 
+    const getSkillLevel = React.useCallback(() => {
+        try {
+            const stored = sessionStorage.getItem('questmap_profile');
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                return parsed.skill_level || 'beginner';
+            }
+        } catch (e) {
+            console.error("Failed to parse questmap_profile:", e);
+        }
+        return 'beginner';
+    }, []);
+
+    const handleMouseUp = React.useCallback((e) => {
+        const selection = window.getSelection();
+        if (!selection || selection.isCollapsed) {
+            if (e.target.closest('.selection-popup-btn')) {
+                return;
+            }
+            setSelectionInfo(null);
+            return;
+        }
+
+        const selectedText = selection.toString().trim();
+        if (!selectedText) {
+            setSelectionInfo(null);
+            return;
+        }
+
+        const range = selection.getRangeAt(0);
+        const codePre = e.currentTarget.querySelector('.code-viewer-pre');
+        if (!codePre || !codePre.contains(range.commonAncestorContainer)) {
+            setSelectionInfo(null);
+            return;
+        }
+
+        const rect = range.getBoundingClientRect();
+        const containerRect = e.currentTarget.getBoundingClientRect();
+        
+        setSelectionInfo({
+            x: rect.left - containerRect.left + (rect.width / 2),
+            y: rect.top - containerRect.top - 8,
+            text: selectedText,
+        });
+    }, []);
+
+    const handleExplainSelection = React.useCallback(async () => {
+        if (!selectionInfo) return;
+        const textToExplain = selectionInfo.text;
+        
+        setSelectionInfo(null);
+        try {
+            window.getSelection()?.removeAllRanges();
+        } catch (_) {}
+
+        if (onToggleMaximize) {
+            onToggleMaximize(true);
+        }
+        setIsSidebarCollapsed(false);
+
+        const skillLevel = getSkillLevel();
+        const topic = selectedNode?.label || '';
+        const surroundingContext = displayCode || '';
+
+        const initialExplainData = {
+            snippet: textToExplain,
+            filePath: activeFilePath,
+            language: activeReference?.language || activeCodeFile?.language || 'javascript',
+            surroundingContext,
+            topic,
+            history: [],
+            loading: true,
+            error: null,
+        };
+        setExplainData(initialExplainData);
+
+        try {
+            const requestUserId = userId || sessionStorage.getItem('questmap_uid') || 'anonymous';
+            const response = await fetch(`${API_BASE}/repo/code/explain`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    selectedSnippet: textToExplain,
+                    filePath: activeFilePath,
+                    language: initialExplainData.language,
+                    surroundingContext,
+                    topic,
+                    skillLevel,
+                    history: [],
+                }),
+            });
+
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Failed to explain code');
+
+            setExplainData(prev => {
+                if (!prev) return null;
+                return {
+                    ...prev,
+                    loading: false,
+                    history: [
+                        { role: 'user', text: `Please explain this selected code snippet: ${textToExplain}` },
+                        { role: 'model', text: data.responseText || '' }
+                    ],
+                };
+            });
+        } catch (err) {
+            setExplainData(prev => {
+                if (!prev) return null;
+                return {
+                    ...prev,
+                    loading: false,
+                    error: err.message,
+                };
+            });
+        }
+    }, [selectionInfo, activeFilePath, activeReference, activeCodeFile, displayCode, selectedNode, getSkillLevel, userId, onToggleMaximize]);
+
+    const handleSendFollowup = React.useCallback(async (e) => {
+        if (e) e.preventDefault();
+        if (!followupText.trim() || !explainData || followupLoading) return;
+
+        const userMsgText = followupText;
+        setFollowupText('');
+        setFollowupLoading(true);
+
+        const updatedHistory = [
+            ...explainData.history,
+            { role: 'user', text: userMsgText }
+        ];
+
+        setExplainData(prev => ({
+            ...prev,
+            history: updatedHistory,
+        }));
+
+        try {
+            const skillLevel = getSkillLevel();
+            const response = await fetch(`${API_BASE}/repo/code/explain`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    selectedSnippet: explainData.snippet,
+                    filePath: explainData.filePath,
+                    language: explainData.language,
+                    surroundingContext: explainData.surroundingContext,
+                    topic: explainData.topic,
+                    skillLevel,
+                    history: updatedHistory.map(msg => ({
+                        role: msg.role === 'model' ? 'model' : 'user',
+                        parts: [{ text: msg.text }]
+                    })),
+                }),
+            });
+
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Failed to get follow-up answer');
+
+            setExplainData(prev => {
+                if (!prev) return null;
+                return {
+                    ...prev,
+                    history: [
+                        ...prev.history,
+                        { role: 'model', text: data.responseText || '' }
+                    ],
+                };
+            });
+        } catch (err) {
+            setExplainData(prev => {
+                if (!prev) return null;
+                return {
+                    ...prev,
+                    error: `Follow-up failed: ${err.message}`,
+                };
+            });
+        } finally {
+            setFollowupLoading(false);
+        }
+    }, [followupText, explainData, followupLoading, getSkillLevel]);
+    React.useEffect(() => {
+        setSelectionInfo(null);
+        setExplainData(null);
+        setFollowupText('');
+    }, [activeFilePath, activeIndex, showFullFile]);
+
+    React.useEffect(() => {
+        const handleScroll = () => {
+            setSelectionInfo(null);
+        };
+        window.addEventListener('scroll', handleScroll, true);
+        return () => {
+            window.removeEventListener('scroll', handleScroll, true);
+        };
+    }, []);
     return (
         <div className="space-y-3">
 
@@ -983,9 +1319,12 @@ const CodeEvidencePanel = ({ selectedNode, userId }) => {
             <div 
                 ref={containerRef} 
                 className="flex flex-col lg:flex-row gap-3"
-                style={{ '--tree-sidebar-width': `${treeWidth}px` }}
+                style={{ 
+                    '--tree-sidebar-width': `${treeWidth}px`,
+                    '--explain-panel-width': `${explainWidth}px`
+                }}
             >
-                {tree.length > 0 && (
+                {tree.length > 0 && !isSidebarCollapsed && (
                     <>
                         <div className="code-tree-sidebar flex-shrink-0 max-h-[34rem] overflow-auto rounded-2xl border border-gray-700/40 bg-gray-950/40 p-2 custom-scrollbar">
                             <p className="mb-2 px-2 text-[9px] font-black uppercase tracking-widest text-gray-600">Code Tree</p>
@@ -1050,11 +1389,26 @@ const CodeEvidencePanel = ({ selectedNode, userId }) => {
                                     </span>
                                 )}
                             </span>
-                            {expanded ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
+                            <div className="flex items-center gap-2.5">
+                                {tree.length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setIsSidebarCollapsed(prev => !prev);
+                                        }}
+                                        title={isSidebarCollapsed ? "Show file tree" : "Hide file tree"}
+                                        className="p-1 rounded hover:bg-white/10 text-gray-400 hover:text-white transition-all flex items-center justify-center"
+                                    >
+                                        <Columns className="w-3.5 h-3.5" />
+                                    </button>
+                                )}
+                                {expanded ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
+                            </div>
                         </button>
 
                         {expanded && (
-                            <div className="mt-3 space-y-3">
+                            <div className="mt-3 space-y-3 relative" onMouseUp={handleMouseUp}>
                                 {selectedKeyword && (
                                     <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-[10px] leading-relaxed text-emerald-300">
                                         <span className="font-bold">Active Keyword Filter: </span>
@@ -1193,7 +1547,7 @@ const CodeEvidencePanel = ({ selectedNode, userId }) => {
                                                 </span>
                                                 <span className="text-[9px] font-bold text-gray-600">{activeReference?.language || activeCodeFile?.language || 'text'}</span>
                                             </div>
-                                            {displayCode ? (
+                                            {displayCode && (
                                                 <CodeBlockWithHighlights
                                                     code={displayCode}
                                                     startLine={displayStartLine}
@@ -1203,26 +1557,202 @@ const CodeEvidencePanel = ({ selectedNode, userId }) => {
                                                     focusStartLine={anchorStartLine}
                                                     language={activeReference?.language || activeCodeFile?.language}
                                                 />
-                                            ) : (
-                                                <pre className="code-viewer-pre overflow-auto p-3 text-[11px] leading-relaxed text-gray-300 custom-scrollbar">
-                                                    <code>No matched code snippet for this file.</code>
-                                                </pre>
                                             )}
                                         </div>
                                     </>
+                                )}
+                                {selectionInfo && (
+                                    <div 
+                                        className="absolute z-50 flex items-center gap-1.5 bg-gray-900 border border-gray-700/60 rounded-xl px-2 py-1.5 shadow-2xl shadow-black/80 animate-fade-in"
+                                        style={{
+                                            left: `${selectionInfo.x}px`,
+                                            top: `${selectionInfo.y}px`,
+                                            transform: 'translate(-50%, -100%)',
+                                        }}
+                                    >
+                                        <button
+                                            type="button"
+                                            onClick={handleExplainSelection}
+                                            className="selection-popup-btn flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 rounded-lg transition-all"
+                                        >
+                                            <Sparkles className="w-3.5 h-3.5" />
+                                            <span>Explain</span>
+                                        </button>
+                                        <div className="w-px h-3 bg-gray-700/60" />
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(selectionInfo.text);
+                                                setSelectionInfo(null);
+                                            }}
+                                            className="selection-popup-btn px-2.5 py-1 text-[10px] font-bold text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-all"
+                                        >
+                                            Copy
+                                        </button>
+                                    </div>
                                 )}
                             </div>
                         )}
                     </div>
                 )}
+
+                {/* 3. AI Explain Column (on the right!) */}
+                {explainData && (
+                    <>
+                        {/* Vertical resize handle */}
+                        <div
+                            role="separator"
+                            onPointerDown={handleExplainResizeStart}
+                            className="hidden lg:flex w-1.5 flex-shrink-0 cursor-col-resize items-center justify-center relative group"
+                        >
+                            <div className={`h-12 w-0.5 rounded-full transition-colors ${
+                                isResizingExplain 
+                                    ? 'bg-blue-400' 
+                                    : 'bg-gray-700 group-hover:bg-blue-400'
+                            }`} />
+                        </div>
+
+                        <div className={`ai-explain-column flex-shrink-0 lg:max-h-[34rem] overflow-auto rounded-2xl border p-4 space-y-4 custom-scrollbar transition-all duration-300 flex flex-col justify-between ${
+                            isLightTheme 
+                                ? 'bg-white/90 border-gray-200/80 shadow-md text-gray-800' 
+                                : 'bg-gray-950/40 border-gray-700/40 text-gray-200 shadow-2xl shadow-black/40'
+                        }`}>
+                        <div className="space-y-4 flex-1">
+                            <div className="flex items-center justify-between border-b border-gray-800/20 pb-2">
+                                <div className="flex items-center gap-2">
+                                    <Sparkles className="w-4 h-4 text-emerald-500 animate-pulse" />
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-500">
+                                        AI Code Analysis
+                                    </span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setExplainData(null)}
+                                    className={`p-1 rounded-md transition-all ${
+                                        isLightTheme
+                                            ? 'hover:bg-gray-100 text-gray-400 hover:text-gray-900'
+                                            : 'hover:bg-white/10 text-gray-500 hover:text-white'
+                                    }`}
+                                >
+                                    <X className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
+
+                            {/* Target Snippet */}
+                            <div className={`rounded-lg p-2 text-[10px] font-mono border ${
+                                isLightTheme
+                                    ? 'bg-gray-55 border-gray-200 text-gray-600'
+                                    : 'bg-gray-950/60 border-gray-800 text-gray-400'
+                            }`}>
+                                <span className={`block text-[8px] font-black uppercase tracking-wider mb-1 ${
+                                    isLightTheme ? 'text-gray-400' : 'text-gray-500'
+                                }`}>
+                                    Target Code Snippet
+                                </span>
+                                <div className="max-h-20 overflow-auto whitespace-pre-wrap break-words custom-scrollbar">
+                                    {explainData.snippet}
+                                </div>
+                            </div>
+
+                            {/* Conversation history */}
+                            <div className="space-y-3 max-h-[16rem] overflow-y-auto pr-1 custom-scrollbar">
+                                {explainData.history.map((msg, idx) => {
+                                    const isUser = msg.role === 'user';
+                                    if (idx === 0 && isUser) return null;
+                                    
+                                    return (
+                                        <div 
+                                            key={idx}
+                                            className={`flex gap-3 items-start ${isUser ? 'justify-end' : ''}`}
+                                        >
+                                            {!isUser && (
+                                                <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 border ${
+                                                    isLightTheme
+                                                        ? 'bg-emerald-50 border-emerald-200'
+                                                        : 'bg-emerald-500/10 border-emerald-500/20'
+                                                }`}>
+                                                    <Bot className="w-3.5 h-3.5 text-emerald-500" />
+                                                </div>
+                                            )}
+                                            <div className={`max-w-[85%] rounded-xl p-3 text-xs leading-relaxed border ${
+                                                isUser 
+                                                    ? isLightTheme
+                                                        ? 'bg-blue-50 border-blue-100 text-blue-900'
+                                                        : 'bg-blue-600/10 border-blue-500/20 text-blue-100'
+                                                    : isLightTheme
+                                                        ? 'bg-gray-50 border-gray-200 text-gray-700'
+                                                        : 'bg-gray-900/30 border-gray-800 text-gray-300'
+                                            }`}>
+                                                {isUser ? (
+                                                    <p className="text-[11px] font-medium whitespace-pre-wrap">{msg.text}</p>
+                                                ) : (
+                                                    <MarkdownText text={msg.text} />
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+
+                                {(explainData.loading || followupLoading) && (
+                                    <div className="flex gap-3 items-start animate-pulse">
+                                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 border ${
+                                            isLightTheme
+                                                ? 'bg-emerald-50 border-emerald-200'
+                                                : 'bg-emerald-500/10 border-emerald-500/20'
+                                        }`}>
+                                            <Bot className="w-3.5 h-3.5 text-emerald-500 animate-bounce" />
+                                        </div>
+                                        <div className={`rounded-xl p-3 text-[11px] italic ${
+                                            isLightTheme ? 'text-gray-400' : 'text-gray-500'
+                                        }`}>
+                                            Thinking...
+                                        </div>
+                                    </div>
+                                )}
+
+                                {explainData.error && (
+                                    <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-3 text-xs text-red-400">
+                                        {explainData.error}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Followup chat form */}
+                        <form onSubmit={handleSendFollowup} className="flex gap-2 pt-2 border-t border-gray-800/10 mt-4">
+                            <input
+                                type="text"
+                                value={followupText}
+                                onChange={(e) => setFollowupText(e.target.value)}
+                                disabled={explainData.loading || followupLoading}
+                                placeholder="Ask a follow-up question..."
+                                className={`flex-1 min-w-0 rounded-xl border px-3.5 py-2 text-xs outline-none transition-all disabled:opacity-50 ${
+                                    isLightTheme
+                                        ? 'border-gray-200 bg-gray-50 text-gray-900 placeholder-gray-400 focus:border-emerald-500 focus:bg-white'
+                                        : 'border-gray-700/50 bg-gray-950/40 text-white placeholder-gray-500 focus:border-emerald-500/50 focus:bg-gray-950/70'
+                                }`}
+                            />
+                            <button
+                                type="submit"
+                                disabled={explainData.loading || followupLoading || !followupText.trim()}
+                                className={`rounded-xl border px-3.5 py-2 transition-all disabled:opacity-30 flex items-center justify-center ${
+                                    isLightTheme
+                                        ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
+                                        : 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/30'
+                                }`}
+                            >
+                                <Send className="w-3.5 h-3.5" />
+                            </button>
+                        </form>
+                    </div>
+                    </>
+                )}
             </div>
         </div>
     );
-};
+};// ─── Main Panel ─────────────────────────────────────────────────────────────
 
-// ─── Main Panel ─────────────────────────────────────────────────────────────
-
-const ResourcePanel = ({ resourceData, loading, selectedNode, userId, isLightTheme }) => {
+const ResourcePanel = ({ resourceData, loading, selectedNode, userId, isLightTheme, isMaximized, onToggleMaximize }) => {
     const isRepo = selectedNode?.repoConcept;
     const tabs = isRepo
         ? [
@@ -1283,17 +1813,29 @@ const ResourcePanel = ({ resourceData, loading, selectedNode, userId, isLightThe
         <div className="space-y-6">
             <div className={`sticky top-0 z-30 -mx-8 px-8 pt-2 pb-4 border-b space-y-4 backdrop-blur-md ${
                 isLightTheme 
-                    ? 'bg-white/90 border-gray-200' 
-                    : 'bg-black/90 border-white/5'
+                    ? 'bg-[#f8fafc]/95 border-gray-200' 
+                    : 'bg-[#11131a]/95 border-white/5'
             }`}>
-                {selectedNode && (
-                    <div className="flex items-center gap-2">
-                        <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                            Resources for: {selectedNode.label}
-                        </span>
-                    </div>
-                )}
+                <div className="flex items-center justify-between gap-3">
+                    {selectedNode && (
+                        <div className="flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                            <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                                Resources for: {selectedNode.label}
+                            </span>
+                        </div>
+                    )}
+                    {onToggleMaximize && (
+                        <button
+                            type="button"
+                            onClick={onToggleMaximize}
+                            title={isMaximized ? "Minimize panel" : "Maximize panel"}
+                            className="rounded-lg border border-gray-700/50 p-1.5 text-gray-400 transition hover:border-gray-600 hover:text-gray-200 flex items-center justify-center"
+                        >
+                            {isMaximized ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                        </button>
+                    )}
+                </div>
 
                 <div className={`grid ${isRepo ? 'grid-cols-3' : 'grid-cols-4'} gap-2 rounded-2xl border border-gray-700/40 bg-gray-900/40 p-1.5 resource-subtabs`}>
                     {tabs.map(tab => {
@@ -1407,7 +1949,7 @@ const ResourcePanel = ({ resourceData, loading, selectedNode, userId, isLightThe
 
                 {activeResourceTab === 'code' && (
                     selectedNode?.repoConcept ? (
-                        <CodeEvidencePanel key={selectedNode.id || selectedNode.label} selectedNode={selectedNode} userId={userId} />
+                        <CodeEvidencePanel key={selectedNode.id || selectedNode.label} selectedNode={selectedNode} userId={userId} isLightTheme={isLightTheme} onToggleMaximize={onToggleMaximize} />
                     ) : (
                         <ResourceEmptyState icon={Code} label="Code evidence is available for GitHub repo learning nodes" />
                     )

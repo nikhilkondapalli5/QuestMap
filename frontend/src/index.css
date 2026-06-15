@@ -3,7 +3,7 @@
 
 :root {
     font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
-    background-color: #000000;
+    background-color: #0a0b10;
     color: white;
 }
 
@@ -451,3 +451,12 @@ body {
     color: #af00db !important;
 }
 
+/* AI Explain Column Resizable classes */
+.ai-explain-column {
+    width: 100%;
+}
+@media (min-width: 1024px) {
+    .ai-explain-column {
+        width: var(--explain-panel-width, 384px) !important;
+    }
+}

@@ -2467,6 +2467,112 @@ app.get('/api/repo/analysis/:id', async (req, res) => {
     }
 });
 
+async function callGeminiText(contents, systemInstruction) {
+    const config = {
+        temperature: 0.4,
+        maxOutputTokens: 4096,
+    };
+    if (systemInstruction) {
+        config.systemInstruction = systemInstruction;
+    }
+
+    const primaryModel = process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash-lite';
+    const models = [
+        primaryModel,
+        'gemini-2.5-flash',
+        'gemini-2.0-flash',
+        'gemini-1.5-flash'
+    ].filter((value, index, self) => self.indexOf(value) === index);
+
+    const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+    let lastError = null;
+
+    for (const model of models) {
+        let attempts = 3;
+        let delayMs = 1000;
+        
+        for (let i = 0; i < attempts; i++) {
+            try {
+                console.log(`[Gemini Call] Model: ${model}, Attempt: ${i + 1}/${attempts}`);
+                const response = await ai.models.generateContent({
+                    model: model,
+                    contents: contents,
+                    config,
+                });
+                return response.text || '';
+            } catch (err) {
+                lastError = err;
+                console.warn(`[Gemini Call] Error on model ${model}, attempt ${i + 1}:`, err.message);
+                
+                // If it is a bad request or unauthorized, don't keep retrying this model
+                if (err.status === 400 || (err.message && err.message.includes('API key not valid'))) {
+                    break;
+                }
+                
+                if (i < attempts - 1) {
+                    await delay(delayMs);
+                    delayMs *= 2;
+                }
+            }
+        }
+    }
+
+    throw new Error(`Gemini generation failed after trying all models. Last error: ${lastError ? lastError.message : 'Unknown error'}`);
+}
+
+
+app.post('/api/repo/code/explain', async (req, res) => {
+    try {
+        const { 
+            selectedSnippet, 
+            filePath, 
+            language, 
+            surroundingContext, 
+            topic, 
+            skillLevel,
+            history = [] 
+        } = req.body;
+
+        if (!selectedSnippet) {
+            return res.status(400).json({ error: 'selectedSnippet is required' });
+        }
+
+        const systemInstruction = `You are an expert developer and a programming teacher. Your goal is to explain code selections clearly and help the user with follow-ups.
+Explain the core logic of the selected code snippet and break down its primary components/parts clearly. Keep your explanation highly structured and concise. Avoid explaining trivial programming syntax (like what a keyword or assignment operator means). Focus directly on what the code logic does. Do NOT write a long essay or large walls of text; keep it brief, informative, and to the point.
+Format your responses using clean, structured Markdown. Do not repeat the code itself unnecessarily, but highlight key segments.
+Frame explanations for a learner at a ${skillLevel || 'beginner'} level, keeping in mind they are studying the topic "${topic || 'software development'}".`;
+
+        let contents = [];
+        if (!history || history.length === 0) {
+            const prompt = `Please explain this selected code snippet:
+\`\`\`${language || ''}
+${selectedSnippet}
+\`\`\`
+
+File path: ${filePath || 'unknown file'}
+
+Surrounding context of the file:
+\`\`\`${language || ''}
+${surroundingContext || 'No surrounding context available'}
+\`\`\`
+
+Briefly explain the key components and logic of this code snippet, and how it fits into the topic of "${topic || 'software development'}". Do not write a long essay or explain basic language keywords; keep the breakdown focused, structured, and direct.`;
+            contents = [{ role: 'user', parts: [{ text: prompt }] }];
+        } else {
+            contents = history.map(msg => ({
+                role: msg.role === 'model' ? 'model' : 'user',
+                parts: [{ text: msg.parts?.[0]?.text || msg.text || '' }]
+            }));
+        }
+
+        const responseText = await callGeminiText(contents, systemInstruction);
+        res.json({ responseText });
+    } catch (err) {
+        console.error('Code explanation error:', err);
+        res.status(500).json({ error: 'Failed to generate code explanation', details: err.message });
+    }
+});
+
 // ── RAG / Pinecone Document Management ────────────────────────────────────
 
 const ingestionJobs = new Map();
