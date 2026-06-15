@@ -389,3 +389,52 @@ body {
 .quest-theme-light .code-viewer-pre::-webkit-resizer {
     background: rgba(5, 150, 105, 0.8) !important;
 }
+
+/* Code Syntax Highlighting (Dark Theme by default) */
+.code-hl-keyword {
+    color: #c586c0; /* purple */
+    font-weight: 600;
+}
+.code-hl-string {
+    color: #ce9178; /* terracotta/orange-brown */
+}
+.code-hl-comment {
+    color: #6a9955; /* soft green */
+    font-style: italic;
+}
+.code-hl-number {
+    color: #b5cea8; /* light green */
+}
+.code-hl-function {
+    color: #dcdcaa; /* pale yellow */
+}
+.code-hl-builtin {
+    color: #4fc1ff; /* light blue */
+}
+.code-hl-tag {
+    color: #569cd6; /* VS Code blue */
+}
+
+/* Light Theme Overrides */
+.quest-theme-light .code-hl-keyword {
+    color: #af00db !important; /* purple */
+}
+.quest-theme-light .code-hl-string {
+    color: #a31515 !important; /* dark red string */
+}
+.quest-theme-light .code-hl-comment {
+    color: #008000 !important; /* green comment */
+}
+.quest-theme-light .code-hl-number {
+    color: #098658 !important;
+}
+.quest-theme-light .code-hl-function {
+    color: #795e26 !important; /* brown function */
+}
+.quest-theme-light .code-hl-builtin {
+    color: #267f99 !important; /* teal builtin */
+}
+.quest-theme-light .code-hl-tag {
+    color: #800000 !important; /* maroon HTML tag */
+}
+

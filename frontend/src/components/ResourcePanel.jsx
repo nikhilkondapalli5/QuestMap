@@ -604,7 +604,75 @@ const formatCodeConfidence = (score) => {
     return `(${percent}%)`;
 };
 
-const CodeBlockWithHighlights = ({ code, startLine = 1, highlightStart, highlightEnd, highlightRanges = [], focusStartLine }) => {
+const highlightLine = (line, language = 'javascript') => {
+    if (!line || !line.trim()) return line || ' ';
+
+    // Escape HTML entities to prevent rendering conflicts
+    let html = line
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+    // 1. Comments
+    let comment = '';
+    const commentRegex = /(\/\/.*|#.*)/;
+    const commentMatch = html.match(commentRegex);
+    if (commentMatch) {
+        comment = commentMatch[0];
+        html = html.replace(comment, '___COMMENT_PLACEHOLDER___');
+    }
+
+    // 2. Strings
+    const strings = [];
+    const stringRegex = /(["'`])((?:\\.|[^\\])*?)\1/g;
+    html = html.replace(stringRegex, (match) => {
+        strings.push(match);
+        return `___STRING_PLACEHOLDER_${strings.length - 1}___`;
+    });
+
+    // 3. Keywords
+    const keywords = [
+        'const', 'let', 'var', 'function', 'return', 'import', 'export', 'default',
+        'class', 'extends', 'def', 'if', 'else', 'for', 'in', 'of', 'while',
+        'try', 'catch', 'finally', 'throw', 'new', 'async', 'await', 'from',
+        'true', 'false', 'null', 'undefined', 'as', 'break', 'continue', 'pass', 'elif'
+    ];
+    const keywordsRegex = new RegExp(`\\b(${keywords.join('|')})\\b`, 'g');
+    html = html.replace(keywordsRegex, '<span class="code-hl-keyword">$1</span>');
+
+    // 4. Function invocations/definitions
+    const funcRegex = /\b([a-zA-Z_$][a-zA-Z0-9_$]*)(?=\s*\()/g;
+    html = html.replace(funcRegex, '<span class="code-hl-function">$1</span>');
+
+    // 5. Numbers
+    const numRegex = /\b(\d+(?:\.\d+)?)\b/g;
+    html = html.replace(numRegex, '<span class="code-hl-number">$1</span>');
+
+    // 6. Built-in hooks / objects
+    const builtins = ['console', 'window', 'document', 'process', 'global', 'self', 'React', 'useState', 'useEffect', 'useRef', 'useMemo', 'useCallback'];
+    const builtinsRegex = new RegExp(`\\b(${builtins.join('|')})\\b`, 'g');
+    html = html.replace(builtinsRegex, '<span class="code-hl-builtin">$1</span>');
+
+    // 7. JSX Tag outlines
+    const tagRegex = /(&lt;\/?[a-z0-9_$]+)/gi;
+    html = html.replace(tagRegex, '<span class="code-hl-tag">$1</span>');
+    const closingTagRegex = /(\/&gt;|&gt;)/g;
+    html = html.replace(closingTagRegex, '<span class="code-hl-tag">$1</span>');
+
+    // 8. Restore strings
+    strings.forEach((str, i) => {
+        html = html.replace(`___STRING_PLACEHOLDER_${i}___`, `<span class="code-hl-string">${str}</span>`);
+    });
+
+    // 9. Restore comments
+    if (comment) {
+        html = html.replace('___COMMENT_PLACEHOLDER___', `<span class="code-hl-comment">${comment}</span>`);
+    }
+
+    return <span dangerouslySetInnerHTML={{ __html: html }} />;
+};
+
+const CodeBlockWithHighlights = ({ code, startLine = 1, highlightStart, highlightEnd, highlightRanges = [], focusStartLine, language }) => {
     const lines = String(code || '').split(/\r?\n/);
     const firstLine = Number(startLine || 1);
     const start = Number(highlightStart);
@@ -660,7 +728,7 @@ const CodeBlockWithHighlights = ({ code, startLine = 1, highlightStart, highligh
                             <span className={`select-none text-right ${highlighted ? 'text-emerald-300' : 'text-gray-600'}`}>
                                 {lineNumber}
                             </span>
-                            <span className="whitespace-pre-wrap break-words">{line || ' '}</span>
+                            <span className="whitespace-pre-wrap break-words">{highlightLine(line, language)}</span>
                         </span>
                     );
                 })}
@@ -1075,6 +1143,7 @@ const CodeEvidencePanel = ({ selectedNode, userId }) => {
                                                     highlightStart={null}
                                                     highlightEnd={null}
                                                     highlightRanges={[]}
+                                                    language={activeCodeFile?.language}
                                                 />
                                             ) : (
                                                 <pre className="code-viewer-pre overflow-auto p-3 text-[11px] leading-relaxed text-gray-300 custom-scrollbar">
@@ -1172,6 +1241,7 @@ const CodeEvidencePanel = ({ selectedNode, userId }) => {
                                                     highlightEnd={anchorEndLine}
                                                     highlightRanges={fullFileHighlightRanges}
                                                     focusStartLine={anchorStartLine}
+                                                    language={activeReference?.language || activeCodeFile?.language}
                                                 />
                                             ) : (
                                                 <pre className="code-viewer-pre overflow-auto p-3 text-[11px] leading-relaxed text-gray-300 custom-scrollbar">
