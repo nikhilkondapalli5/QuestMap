@@ -24,7 +24,7 @@ const DASHBOARD_CACHE_VERSION = 'repo-source-map-v6';
 const NODE_CACHE_VERSION = 'grounded-node-data-v3';
 const DEFAULT_PANEL_WIDTH = 480;
 const MIN_PANEL_WIDTH = 360;
-const MAX_PANEL_WIDTH = 1120;
+const MAX_PANEL_WIDTH = 2000;
 const MIN_MAP_WIDTH = 280;
 
 const MasteryOverview = ({ summary }) => {
@@ -161,7 +161,15 @@ const Dashboard = () => {
     const [activeTab, setActiveTab] = useState('recommendations');
     const [panelWidth, setPanelWidth] = useState(() => {
         const saved = Number(sessionStorage.getItem('questmap_panel_width'));
-        return Number.isFinite(saved) && saved >= MIN_PANEL_WIDTH ? saved : DEFAULT_PANEL_WIDTH;
+        if (Number.isFinite(saved) && saved >= MIN_PANEL_WIDTH) {
+            return saved;
+        }
+        if (typeof window !== 'undefined') {
+            const initialDefault = Math.round(window.innerWidth * 0.5);
+            const viewportLimit = Math.max(MIN_PANEL_WIDTH, Math.min(window.innerWidth * 0.85, window.innerWidth - MIN_MAP_WIDTH));
+            return Math.min(Math.max(initialDefault, MIN_PANEL_WIDTH), Math.min(MAX_PANEL_WIDTH, viewportLimit));
+        }
+        return DEFAULT_PANEL_WIDTH;
     });
     const [isResizingPanel, setIsResizingPanel] = useState(false);
     const [theme, setTheme] = useState(() => sessionStorage.getItem('questmap_theme') || 'dark');
@@ -494,7 +502,7 @@ const Dashboard = () => {
     const clampPanelWidth = useCallback((width) => {
         const viewportLimit = typeof window === 'undefined'
             ? MAX_PANEL_WIDTH
-            : Math.max(MIN_PANEL_WIDTH, Math.min(window.innerWidth * 0.7, window.innerWidth - MIN_MAP_WIDTH));
+            : Math.max(MIN_PANEL_WIDTH, Math.min(window.innerWidth * 0.85, window.innerWidth - MIN_MAP_WIDTH));
         return Math.min(Math.max(width, MIN_PANEL_WIDTH), Math.min(MAX_PANEL_WIDTH, viewportLimit));
     }, []);
 
@@ -530,6 +538,14 @@ const Dashboard = () => {
     useEffect(() => {
         sessionStorage.setItem('questmap_panel_width', String(panelWidth));
     }, [panelWidth]);
+
+    useEffect(() => {
+        const handleResize = () => {
+            setPanelWidth(current => clampPanelWidth(current));
+        };
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, [clampPanelWidth]);
 
     const handleThemeToggle = useCallback(() => {
         setTheme(current => {
@@ -786,8 +802,14 @@ const Dashboard = () => {
                                 </motion.div>
                             )}
                             {activeTab === 'resources' && (
-                                <motion.div key="res" className="h-full min-h-0" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
-                                    <ResourcePanel resourceData={resourceData} loading={loading.resources} selectedNode={selectedNode} userId={currentUserId} />
+                                <motion.div key="res" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+                                    <ResourcePanel 
+                                        resourceData={resourceData} 
+                                        loading={loading.resources} 
+                                        selectedNode={selectedNode} 
+                                        userId={currentUserId} 
+                                        isLightTheme={isLightTheme}
+                                    />
                                 </motion.div>
                             )}
                         </AnimatePresence>

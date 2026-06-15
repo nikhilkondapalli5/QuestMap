@@ -20,7 +20,8 @@ body {
 
 /* Custom scrollbar for panels */
 .custom-scrollbar::-webkit-scrollbar {
-    width: 3px;
+    width: 6px;
+    height: 6px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
@@ -28,12 +29,12 @@ body {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(107, 114, 128, 0.2);
-    border-radius: 4px;
+    background: rgba(107, 114, 128, 0.25);
+    border-radius: 6px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(107, 114, 128, 0.4);
+    background: rgba(107, 114, 128, 0.45);
 }
 
 /* Glassmorphism System */

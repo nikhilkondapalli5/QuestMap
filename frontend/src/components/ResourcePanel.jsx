@@ -1280,7 +1280,7 @@ const CodeEvidencePanel = ({ selectedNode, userId }) => {
 
 // ─── Main Panel ─────────────────────────────────────────────────────────────
 
-const ResourcePanel = ({ resourceData, loading, selectedNode, userId }) => {
+const ResourcePanel = ({ resourceData, loading, selectedNode, userId, isLightTheme }) => {
     const isRepo = selectedNode?.repoConcept;
     const tabs = isRepo
         ? [
@@ -1338,8 +1338,12 @@ const ResourcePanel = ({ resourceData, loading, selectedNode, userId }) => {
     };
 
     return (
-        <div className="flex h-full min-h-0 flex-col">
-            <div className="flex-shrink-0 space-y-4 pb-4">
+        <div className="space-y-6">
+            <div className={`sticky top-0 z-30 -mx-8 px-8 pt-2 pb-4 border-b space-y-4 backdrop-blur-md ${
+                isLightTheme 
+                    ? 'bg-white/90 border-gray-200' 
+                    : 'bg-black/90 border-white/5'
+            }`}>
                 {selectedNode && (
                     <div className="flex items-center gap-2">
                         <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
@@ -1375,7 +1379,7 @@ const ResourcePanel = ({ resourceData, loading, selectedNode, userId }) => {
                 <ResourceGroundingSummary coverage={resourceData.source_coverage} />
             </div>
 
-            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto pr-1 custom-scrollbar">
+            <div className="space-y-6">
                 {activeResourceTab === 'youtube' && (
                     <>
                     {resourceData.subscription_videos?.length > 0 && (
