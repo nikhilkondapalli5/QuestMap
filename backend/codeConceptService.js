@@ -723,73 +723,44 @@ function lexicalFallback({ concepts, blocks }) {
     return linkedConcepts;
 }
 
+async function limitConcurrency(tasks, limit) {
+    const results = [];
+    const executing = new Set();
+    for (const task of tasks) {
+        const p = Promise.resolve().then(() => task());
+        results.push(p);
+        executing.add(p);
+        const clean = () => executing.delete(p);
+        p.then(clean, clean);
+        if (executing.size >= limit) {
+            await Promise.race(executing);
+        }
+    }
+    return Promise.all(results);
+}
+
 async function ingestRepoCodeEvidence({ userId, repo, sourceFiles = [], callLlm }) {
     const files = sourceFiles
         .filter(file => file?.path && file?.text)
         .slice(0, MAX_FILES_TO_INGEST);
 
-    const storedFiles = [];
-    const storedBlocks = [];
+    console.log(`[CodeConcept] Ingesting ${files.length} code files in parallel (concurrency: 15)...`);
 
-    for (const sourceFile of files) {
-        const language = languageForPath(sourceFile.path);
-        const contentHash = sha256(sourceFile.text);
-        const lineCount = String(sourceFile.text).split(/\r?\n/).length;
+    // 1. Ingest files in parallel
+    const storedFiles = await limitConcurrency(
+        files.map(sourceFile => async () => {
+            const language = languageForPath(sourceFile.path);
+            const contentHash = sha256(sourceFile.text);
+            const lineCount = String(sourceFile.text).split(/\r?\n/).length;
 
-        let repoFile;
-        try {
-            repoFile = await RepoFile.findOneAndUpdate(
-                {
-                    userId,
-                    repoFullName: repo.fullName,
-                    commitSha: repo.commitSha,
-                    filePath: sourceFile.path,
-                },
-                {
-                    userId,
-                    repoFullName: repo.fullName,
-                    repoUrl: repo.url,
-                    defaultBranch: repo.defaultBranch,
-                    commitSha: repo.commitSha,
-                    filePath: sourceFile.path,
-                    language,
-                    content: sourceFile.text,
-                    contentHash,
-                    lineCount,
-                    updatedAt: new Date(),
-                },
-                { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
-            );
-        } catch (dbErr) {
-            console.warn('[CodeConcept] DB file write failed, using fallback in-memory file:', dbErr.message);
-            repoFile = {
-                _id: 'mock_file_id_' + contentHash.slice(0, 12),
-                userId,
-                repoFullName: repo.fullName,
-                commitSha: repo.commitSha,
-                filePath: sourceFile.path,
-                language,
-                content: sourceFile.text,
-                contentHash,
-                lineCount,
-            };
-        }
-        storedFiles.push(repoFile);
-
-        // Run local code blocks chunking parser (hybrid tree-sitter / regex)
-        const blocks = await parseCodeBlocks({ filePath: sourceFile.path, content: sourceFile.text });
-        
-        for (const block of blocks) {
-            const blockHash = sha256(`${repoFile._id}:${block.startLine}:${block.endLine}:${block.snippet}`);
-            const vectorId = `block_${userId}_${blockHash.slice(0, 24)}`;
-            let savedBlock;
+            let repoFile;
             try {
-                savedBlock = await RepoCodeBlock.findOneAndUpdate(
+                repoFile = await RepoFile.findOneAndUpdate(
                     {
                         userId,
                         repoFullName: repo.fullName,
                         commitSha: repo.commitSha,
-                        contentHash: blockHash,
+                        filePath: sourceFile.path,
                     },
                     {
                         userId,
@@ -797,6 +768,96 @@ async function ingestRepoCodeEvidence({ userId, repo, sourceFiles = [], callLlm 
                         repoUrl: repo.url,
                         defaultBranch: repo.defaultBranch,
                         commitSha: repo.commitSha,
+                        filePath: sourceFile.path,
+                        language,
+                        content: sourceFile.text,
+                        contentHash,
+                        lineCount,
+                        updatedAt: new Date(),
+                    },
+                    { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
+                );
+            } catch (dbErr) {
+                console.warn('[CodeConcept] DB file write failed, using fallback in-memory file:', dbErr.message);
+                repoFile = {
+                    _id: 'mock_file_id_' + contentHash.slice(0, 12),
+                    userId,
+                    repoFullName: repo.fullName,
+                    commitSha: repo.commitSha,
+                    filePath: sourceFile.path,
+                    language,
+                    content: sourceFile.text,
+                    contentHash,
+                    lineCount,
+                };
+            }
+            return repoFile;
+        }),
+        15
+    );
+
+    console.log(`[CodeConcept] Running AST chunking on ${files.length} files in parallel (concurrency: 15)...`);
+
+    // 2. Parse code blocks for all files in parallel
+    const allParsedBlocks = await limitConcurrency(
+        files.map((sourceFile, idx) => async () => {
+            const repoFile = storedFiles[idx];
+            const blocks = await parseCodeBlocks({ filePath: sourceFile.path, content: sourceFile.text });
+            return { repoFile, blocks };
+        }),
+        15
+    );
+
+    // 3. Process and write all blocks in parallel
+    const saveBlockTasks = [];
+    for (const { repoFile, blocks } of allParsedBlocks) {
+        if (!blocks) continue;
+        for (const block of blocks) {
+            const blockHash = sha256(`${repoFile._id}:${block.startLine}:${block.endLine}:${block.snippet}`);
+            const vectorId = `block_${userId}_${blockHash.slice(0, 24)}`;
+            
+            saveBlockTasks.push(async () => {
+                let savedBlock;
+                try {
+                    savedBlock = await RepoCodeBlock.findOneAndUpdate(
+                        {
+                            userId,
+                            repoFullName: repo.fullName,
+                            commitSha: repo.commitSha,
+                            contentHash: blockHash,
+                        },
+                        {
+                            userId,
+                            repoFullName: repo.fullName,
+                            repoUrl: repo.url,
+                            defaultBranch: repo.defaultBranch,
+                            commitSha: repo.commitSha,
+                            fileId: repoFile._id,
+                            filePath: sourceFile.path,
+                            language: block.language,
+                            blockType: block.blockType,
+                            symbolName: block.symbolName,
+                            startLine: block.startLine,
+                            endLine: block.endLine,
+                            snippet: block.snippet,
+                            anchorStartLine: block.anchorStartLine || block.startLine,
+                            anchorEndLine: block.anchorEndLine || block.endLine,
+                            anchorSnippet: block.anchorSnippet || block.snippet,
+                            traceSymbolName: block.traceSymbolName || block.symbolName,
+                            traceBlockType: block.traceBlockType || block.blockType,
+                            traceStartLine: block.traceStartLine || block.startLine,
+                            traceEndLine: block.traceEndLine || block.endLine,
+                            traceSnippet: block.traceSnippet || block.snippet,
+                            contentHash: blockHash,
+                            summary: block.summary || '',
+                            vectorId,
+                            updatedAt: new Date(),
+                        },
+                        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
+                    );
+                } catch (dbErr) {
+                    savedBlock = {
+                        _id: 'mock_block_id_' + blockHash.slice(0, 12),
                         fileId: repoFile._id,
                         filePath: sourceFile.path,
                         language: block.language,
@@ -816,37 +877,15 @@ async function ingestRepoCodeEvidence({ userId, repo, sourceFiles = [], callLlm 
                         contentHash: blockHash,
                         summary: block.summary || '',
                         vectorId,
-                        updatedAt: new Date(),
-                    },
-                    { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
-                );
-            } catch (dbErr) {
-                savedBlock = {
-                    _id: 'mock_block_id_' + blockHash.slice(0, 12),
-                    fileId: repoFile._id,
-                    filePath: sourceFile.path,
-                    language: block.language,
-                    blockType: block.blockType,
-                    symbolName: block.symbolName,
-                    startLine: block.startLine,
-                    endLine: block.endLine,
-                    snippet: block.snippet,
-                    anchorStartLine: block.anchorStartLine || block.startLine,
-                    anchorEndLine: block.anchorEndLine || block.endLine,
-                    anchorSnippet: block.anchorSnippet || block.snippet,
-                    traceSymbolName: block.traceSymbolName || block.symbolName,
-                    traceBlockType: block.traceBlockType || block.blockType,
-                    traceStartLine: block.traceStartLine || block.startLine,
-                    traceEndLine: block.traceEndLine || block.endLine,
-                    traceSnippet: block.traceSnippet || block.snippet,
-                    contentHash: blockHash,
-                    summary: block.summary || '',
-                    vectorId,
-                };
-            }
-            storedBlocks.push(savedBlock);
+                    };
+                }
+                return savedBlock;
+            });
         }
     }
+
+    console.log(`[CodeConcept] Writing ${saveBlockTasks.length} code blocks to database in parallel (concurrency: 15)...`);
+    const storedBlocks = await limitConcurrency(saveBlockTasks, 15);
 
     let vectorCount = 0;
     try {

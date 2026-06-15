@@ -391,50 +391,62 @@ body {
 }
 
 /* Code Syntax Highlighting (Dark Theme by default) */
-.code-hl-keyword {
+.code-hl-keyword, .token.keyword {
     color: #c586c0; /* purple */
     font-weight: 600;
 }
-.code-hl-string {
+.code-hl-string, .token.string {
     color: #ce9178; /* terracotta/orange-brown */
 }
-.code-hl-comment {
+.code-hl-comment, .token.comment {
     color: #6a9955; /* soft green */
     font-style: italic;
 }
-.code-hl-number {
+.code-hl-number, .token.number, .token.boolean {
     color: #b5cea8; /* light green */
 }
-.code-hl-function {
+.code-hl-function, .token.function {
     color: #dcdcaa; /* pale yellow */
 }
-.code-hl-builtin {
+.code-hl-builtin, .token.builtin, .token.class-name, .token.type {
     color: #4fc1ff; /* light blue */
 }
-.code-hl-tag {
+.code-hl-tag, .token.tag {
     color: #569cd6; /* VS Code blue */
+}
+.token.operator, .token.punctuation {
+    color: #d4d4d4; /* light gray */
+}
+.token.macro, .token.directive {
+    color: #c586c0; /* preprocessor directives */
 }
 
 /* Light Theme Overrides */
-.quest-theme-light .code-hl-keyword {
+.quest-theme-light .code-hl-keyword, .quest-theme-light .token.keyword {
     color: #af00db !important; /* purple */
 }
-.quest-theme-light .code-hl-string {
+.quest-theme-light .code-hl-string, .quest-theme-light .token.string {
     color: #a31515 !important; /* dark red string */
 }
-.quest-theme-light .code-hl-comment {
+.quest-theme-light .code-hl-comment, .quest-theme-light .token.comment {
     color: #008000 !important; /* green comment */
 }
-.quest-theme-light .code-hl-number {
+.quest-theme-light .code-hl-number, .quest-theme-light .token.number, .quest-theme-light .token.boolean {
     color: #098658 !important;
 }
-.quest-theme-light .code-hl-function {
+.quest-theme-light .code-hl-function, .quest-theme-light .token.function {
     color: #795e26 !important; /* brown function */
 }
-.quest-theme-light .code-hl-builtin {
+.quest-theme-light .code-hl-builtin, .quest-theme-light .token.builtin, .quest-theme-light .token.class-name, .quest-theme-light .token.type {
     color: #267f99 !important; /* teal builtin */
 }
-.quest-theme-light .code-hl-tag {
+.quest-theme-light .code-hl-tag, .quest-theme-light .token.tag {
     color: #800000 !important; /* maroon HTML tag */
+}
+.quest-theme-light .token.operator, .quest-theme-light .token.punctuation {
+    color: #000000 !important;
+}
+.quest-theme-light .token.macro, .quest-theme-light .token.directive {
+    color: #af00db !important;
 }
 

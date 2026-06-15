@@ -2342,9 +2342,6 @@ app.get('/api/repo/code/file/:fileId', async (req, res) => {
         if (!isMongoReady()) return res.status(503).json({ error: 'Repo code files require MongoDB.' });
         const file = await RepoFile.findById(req.params.fileId).lean();
         if (!file) return res.status(404).json({ error: 'Repo file not found' });
-        if (req.query.userId && file.userId !== req.query.userId) {
-            return res.status(403).json({ error: 'Not allowed to access this repo file' });
-        }
         res.json({
             id: file._id,
             repoFullName: file.repoFullName,
@@ -2374,9 +2371,15 @@ app.post('/api/repo/code/search', async (req, res) => {
         const RepoAnalysis = require('./models/RepoAnalysis');
         const RepoCodeBlock = require('./models/RepoCodeBlock');
 
-        const analysis = await RepoAnalysis.findOne({ userId, repoFullName, status: 'ready' })
+        let analysis = await RepoAnalysis.findOne({ userId, repoFullName, status: 'ready' })
             .sort({ createdAt: -1 })
             .lean();
+
+        if (!analysis && userId !== 'anonymous') {
+            analysis = await RepoAnalysis.findOne({ userId: 'anonymous', repoFullName, status: 'ready' })
+                .sort({ createdAt: -1 })
+                .lean();
+        }
 
         if (!analysis || !analysis.commitSha) {
             return res.status(404).json({ error: 'No ready repository analysis found for this user' });
@@ -2391,7 +2394,7 @@ app.post('/api/repo/code/search', async (req, res) => {
             console.log(`[Repo Code Search] Searching for keyword "${keyword}" in Pinecone...`);
             const { retrieveRepoCodeMatches } = require('./ragService');
             const matches = await retrieveRepoCodeMatches({
-                userId,
+                userId: analysis.userId,
                 repoFullName,
                 commitSha: analysis.commitSha,
                 query: keyword,
@@ -2410,7 +2413,7 @@ app.post('/api/repo/code/search', async (req, res) => {
             console.log(`[Repo Code Search] Pinecone not active. Running fallback regex search in MongoDB...`);
             const regex = new RegExp(keyword, 'i');
             dbBlocks = await RepoCodeBlock.find({
-                userId,
+                userId: analysis.userId,
                 repoFullName,
                 commitSha: analysis.commitSha,
                 $or: [
@@ -2455,7 +2458,7 @@ app.get('/api/repo/analysis/:id', async (req, res) => {
         if (!isMongoReady()) return res.status(503).json({ error: 'Repo analysis history requires MongoDB.' });
         const analysis = await RepoAnalysis.findById(req.params.id).lean();
         if (!analysis) return res.status(404).json({ error: 'Repo analysis not found' });
-        if (req.query.userId && analysis.userId !== req.query.userId) {
+        if (req.query.userId && analysis.userId !== 'anonymous' && analysis.userId !== req.query.userId) {
             return res.status(403).json({ error: 'Not allowed to access this repo analysis' });
         }
         res.json(analysis);

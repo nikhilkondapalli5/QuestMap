@@ -2,6 +2,15 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Youtube, BookOpen, Library, Clock, ExternalLink, Search, Play, ShieldCheck, AlertTriangle, Code, FileText, Folder, FolderOpen, ChevronDown, ChevronUp, ChevronRight, Loader2 } from 'lucide-react';
 import { API_BASE } from '../config/api';
+import Prism from 'prismjs';
+import 'prismjs/components/prism-javascript';
+import 'prismjs/components/prism-python';
+import 'prismjs/components/prism-jsx';
+import 'prismjs/components/prism-tsx';
+import 'prismjs/components/prism-typescript';
+import 'prismjs/components/prism-c';
+import 'prismjs/components/prism-cpp';
+import 'prismjs/components/prism-go';
 
 const RESOURCE_TABS = [
     { id: 'youtube', label: 'YouTube', icon: Youtube },
@@ -604,76 +613,75 @@ const formatCodeConfidence = (score) => {
     return `(${percent}%)`;
 };
 
-const highlightLine = (line, language = 'javascript') => {
-    if (!line || !line.trim()) return line || ' ';
-
-    // Escape HTML entities to prevent rendering conflicts
-    let html = line
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-
-    // 1. Comments
-    let comment = '';
-    const commentRegex = /(\/\/.*|#.*)/;
-    const commentMatch = html.match(commentRegex);
-    if (commentMatch) {
-        comment = commentMatch[0];
-        html = html.replace(comment, '___COMMENT_PLACEHOLDER___');
+const highlightCodeWithPrism = (code, language = 'javascript') => {
+    let prismLang = Prism.languages.javascript;
+    const lang = String(language || '').toLowerCase();
+    
+    if (lang === 'python' || lang === 'py') {
+        prismLang = Prism.languages.python;
+    } else if (lang === 'typescript' || lang === 'ts') {
+        prismLang = Prism.languages.typescript;
+    } else if (lang === 'jsx') {
+        prismLang = Prism.languages.jsx;
+    } else if (lang === 'tsx') {
+        prismLang = Prism.languages.tsx;
+    } else if (lang === 'c') {
+        prismLang = Prism.languages.c || Prism.languages.javascript;
+    } else if (lang === 'cpp' || lang === 'c++') {
+        prismLang = Prism.languages.cpp || Prism.languages.c || Prism.languages.javascript;
+    } else if (lang === 'go') {
+        prismLang = Prism.languages.go || Prism.languages.javascript;
     }
-
-    // 2. Strings
-    const strings = [];
-    const stringRegex = /(["'`])((?:\\.|[^\\])*?)\1/g;
-    html = html.replace(stringRegex, (match) => {
-        strings.push(match);
-        return `___STRING_PLACEHOLDER_${strings.length - 1}___`;
-    });
-
-    // 3. Keywords
-    const keywords = [
-        'const', 'let', 'var', 'function', 'return', 'import', 'export', 'default',
-        'class', 'extends', 'def', 'if', 'else', 'for', 'in', 'of', 'while',
-        'try', 'catch', 'finally', 'throw', 'new', 'async', 'await', 'from',
-        'true', 'false', 'null', 'undefined', 'as', 'break', 'continue', 'pass', 'elif'
-    ];
-    const keywordsRegex = new RegExp(`\\b(${keywords.join('|')})\\b`, 'g');
-    html = html.replace(keywordsRegex, '<span class="code-hl-keyword">$1</span>');
-
-    // 4. Function invocations/definitions
-    const funcRegex = /\b([a-zA-Z_$][a-zA-Z0-9_$]*)(?=\s*\()/g;
-    html = html.replace(funcRegex, '<span class="code-hl-function">$1</span>');
-
-    // 5. Numbers
-    const numRegex = /\b(\d+(?:\.\d+)?)\b/g;
-    html = html.replace(numRegex, '<span class="code-hl-number">$1</span>');
-
-    // 6. Built-in hooks / objects
-    const builtins = ['console', 'window', 'document', 'process', 'global', 'self', 'React', 'useState', 'useEffect', 'useRef', 'useMemo', 'useCallback'];
-    const builtinsRegex = new RegExp(`\\b(${builtins.join('|')})\\b`, 'g');
-    html = html.replace(builtinsRegex, '<span class="code-hl-builtin">$1</span>');
-
-    // 7. JSX Tag outlines
-    const tagRegex = /(&lt;\/?[a-z0-9_$]+)/gi;
-    html = html.replace(tagRegex, '<span class="code-hl-tag">$1</span>');
-    const closingTagRegex = /(\/&gt;|&gt;)/g;
-    html = html.replace(closingTagRegex, '<span class="code-hl-tag">$1</span>');
-
-    // 8. Restore strings
-    strings.forEach((str, i) => {
-        html = html.replace(`___STRING_PLACEHOLDER_${i}___`, `<span class="code-hl-string">${str}</span>`);
-    });
-
-    // 9. Restore comments
-    if (comment) {
-        html = html.replace('___COMMENT_PLACEHOLDER___', `<span class="code-hl-comment">${comment}</span>`);
+    
+    try {
+        const tokens = Prism.tokenize(code || '', prismLang);
+        
+        // Walk the token tree to split lines recursively while preserving nested tags
+        const lines = [[]];
+        const walk = (tokenList, parentType = '') => {
+            for (const token of tokenList) {
+                if (typeof token === 'string') {
+                    const parts = token.split(/\r?\n/);
+                    parts.forEach((part, i) => {
+                        if (i > 0) {
+                            lines.push([]);
+                        }
+                        if (part) {
+                            lines[lines.length - 1].push({ text: part, type: parentType });
+                        }
+                    });
+                } else {
+                    const currentType = [parentType, `token ${token.type}`].filter(Boolean).join(' ');
+                    if (Array.isArray(token.content)) {
+                        walk(token.content, currentType);
+                    } else {
+                        const parts = String(token.content).split(/\r?\n/);
+                        parts.forEach((part, i) => {
+                            if (i > 0) {
+                                lines.push([]);
+                            }
+                            if (part) {
+                                lines[lines.length - 1].push({ text: part, type: currentType });
+                            }
+                        });
+                    }
+                }
+            }
+        };
+        
+        walk(tokens);
+        return lines;
+    } catch (e) {
+        // Fallback to split lines of plain text
+        return String(code || '').split(/\r?\n/).map(line => line ? [{ text: line, type: '' }] : []);
     }
-
-    return <span dangerouslySetInnerHTML={{ __html: html }} />;
 };
 
 const CodeBlockWithHighlights = ({ code, startLine = 1, highlightStart, highlightEnd, highlightRanges = [], focusStartLine, language }) => {
-    const lines = String(code || '').split(/\r?\n/);
+    const lines = React.useMemo(() => {
+        return highlightCodeWithPrism(code, language);
+    }, [code, language]);
+
     const firstLine = Number(startLine || 1);
     const start = Number(highlightStart);
     const end = Number(highlightEnd);
@@ -707,7 +715,7 @@ const CodeBlockWithHighlights = ({ code, startLine = 1, highlightStart, highligh
                 }
             }
         }
-    }, [code, firstLine, ranges, focusStartLine]);
+    }, [lines, firstLine, ranges, focusStartLine]);
 
     return (
         <pre 
@@ -728,7 +736,17 @@ const CodeBlockWithHighlights = ({ code, startLine = 1, highlightStart, highligh
                             <span className={`select-none text-right ${highlighted ? 'text-emerald-300' : 'text-gray-600'}`}>
                                 {lineNumber}
                             </span>
-                            <span className="whitespace-pre-wrap break-words">{highlightLine(line, language)}</span>
+                            <span className="whitespace-pre-wrap break-words">
+                                {line.length === 0 ? ' ' : line.map((part, partIdx) => (
+                                    part.type ? (
+                                        <span key={partIdx} className={part.type}>
+                                            {part.text}
+                                        </span>
+                                    ) : (
+                                        part.text
+                                    )
+                                ))}
+                            </span>
                         </span>
                     );
                 })}
