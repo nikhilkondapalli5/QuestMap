@@ -26,12 +26,6 @@ function App() {
 
         <div className="flex items-center gap-8">
           <button
-            onClick={() => navigate('/login')}
-            className="text-[10px] font-black uppercase tracking-[0.3em] text-white/30 hover:text-white transition-all"
-          >
-            Authenticate
-          </button>
-          <button
             onClick={() => navigate('/profile')}
             className="bg-white/5 border border-white/10 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-white/10 transition-all"
           >

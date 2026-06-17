@@ -71,28 +71,10 @@ const RepoLearningPanel = ({ userId, skillLevel, initialAnalysis, onConceptSelec
 
     return (
         <div className="space-y-5 pb-4">
-            <form onSubmit={analyzeRepo} className="space-y-3">
-                <div className="flex items-center gap-2">
-                    <GitBranch className="h-4 w-4 text-blue-400" />
-                    <h3 className="text-sm font-black uppercase tracking-widest text-white">Repo Learning</h3>
-                </div>
-                <div className="flex gap-2">
-                    <input
-                        value={repoUrl}
-                        onChange={event => setRepoUrl(event.target.value)}
-                        placeholder="https://github.com/org/repo"
-                        className="min-w-0 flex-1 rounded-xl border border-white/10 bg-gray-900/70 px-3 py-3 text-sm text-white outline-none transition focus:border-blue-400/60"
-                    />
-                    <button
-                        type="submit"
-                        disabled={loading || !repoUrl.trim()}
-                        className="inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl border border-blue-500/30 bg-blue-500/15 text-blue-300 transition hover:bg-blue-500/25 disabled:cursor-not-allowed disabled:opacity-50"
-                        title="Analyze repository"
-                    >
-                        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
-                    </button>
-                </div>
-            </form>
+            <div className="flex items-center gap-2">
+                <GitBranch className="h-4 w-4 text-blue-400" />
+                <h3 className="text-sm font-black uppercase tracking-widest text-white">Repo Learning</h3>
+            </div>
 
             {error && (
                 <div className="rounded-xl border border-red-500/25 bg-red-500/10 p-3 text-xs leading-relaxed text-red-300">
@@ -113,25 +95,7 @@ const RepoLearningPanel = ({ userId, skillLevel, initialAnalysis, onConceptSelec
 
             {analysisResult && (
                 <>
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                        <div className="flex items-start justify-between gap-3">
-                            <div>
-                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">{analysisResult.repo?.fullName}</p>
-                                <h4 className="mt-1 text-base font-bold text-white">{analysisResult.analysis?.repo_summary?.project_type}</h4>
-                            </div>
-                            <span className={`rounded-full border px-2 py-1 text-[10px] font-black uppercase ${confidenceClass[analysisResult.analysis?.repo_summary?.confidence] || confidenceClass.medium}`}>
-                                {analysisResult.analysis?.repo_summary?.confidence || 'medium'}
-                            </span>
-                        </div>
-                        <p className="mt-3 text-sm leading-relaxed text-gray-400">{analysisResult.analysis?.repo_summary?.plain_english}</p>
-                        {analysisResult.analysis?.detected_stack?.length > 0 && (
-                            <div className="mt-3 flex flex-wrap gap-2">
-                                {analysisResult.analysis.detected_stack.map(item => (
-                                    <span key={item} className="rounded-md bg-white/5 px-2 py-1 text-[10px] font-bold text-gray-300">{item}</span>
-                                ))}
-                            </div>
-                        )}
-                    </div>
+
 
                     <div className="space-y-3">
                         <div className="flex items-center gap-2">
@@ -197,22 +161,14 @@ const RepoLearningPanel = ({ userId, skillLevel, initialAnalysis, onConceptSelec
                                 ))}
                             </div>
 
-                            <div className="mt-5 grid grid-cols-2 gap-2">
+                            <div className="mt-5">
                                 <button
                                     type="button"
                                     onClick={() => activateConcept(selectedConcept, 'resources')}
-                                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-500/25 bg-red-500/10 px-3 py-3 text-xs font-black uppercase tracking-widest text-red-300 transition hover:bg-red-500/20"
+                                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-red-500/25 bg-red-500/10 px-3 py-3 text-xs font-black uppercase tracking-widest text-red-300 transition hover:bg-red-500/20"
                                 >
                                     <BookOpen className="h-4 w-4" />
                                     Resources
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => activateConcept(selectedConcept, 'practice')}
-                                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-3 py-3 text-xs font-black uppercase tracking-widest text-emerald-300 transition hover:bg-emerald-500/20"
-                                >
-                                    <Target className="h-4 w-4" />
-                                    Practice
                                 </button>
                             </div>
                         </div>

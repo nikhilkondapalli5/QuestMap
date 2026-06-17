@@ -29,7 +29,7 @@ try {
             <BrowserRouter>
                 <Suspense fallback={<RouteFallback />}>
                     <Routes>
-                        <Route path="/" element={<Home />} />
+                        <Route path="/" element={<Profile />} />
                         <Route path="/overview" element={<App />} />
                         <Route path="/login" element={<Login />} />
                         <Route path="/profile" element={<Profile />} />

@@ -130,28 +130,7 @@ const NodeCard = ({ node, isSelected, onSelect, index }) => {
                     </h4>
                 </div>
 
-                <div className="flex items-center gap-2 mt-1">
-                    {node.estimated_hours && (
-                        <span className="text-[10px] text-gray-500 flex items-center gap-0.5">
-                            <Clock className="w-2.5 h-2.5" />
-                            {node.estimated_hours}h
-                        </span>
-                    )}
-                    {node.bloom_level && (
-                        <span className="text-[10px] text-gray-600 tracking-wide uppercase">
-                            {node.bloom_level}
-                        </span>
-                    )}
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${config.text} ${config.bg} ${config.border}`}>
-                        {config.label}
-                    </span>
-                    {node.remediation_required && (
-                        <span className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-300">
-                            <AlertTriangle className="w-2.5 h-2.5" />
-                            Review
-                        </span>
-                    )}
-                </div>
+
 
                 {/* Expanded details when selected */}
                 <AnimatePresence>
@@ -252,7 +231,7 @@ const StageSection = ({ stage, stageIndex, selectedNode, onNodeSelect, totalStag
     );
 };
 
-const RepoOverview = ({ mapData }) => {
+export const RepoOverview = ({ mapData }) => {
     const summary = mapData?.repo_summary;
     if (!summary?.plain_english && !summary?.project_type) return null;
 
@@ -335,7 +314,6 @@ const LearningPathMap = ({ mapData, selectedNode, onNodeSelect }) => {
 
             {/* Scrollable path */}
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
-                <RepoOverview mapData={mapData} />
                 {stages.map((stage, i) => (
                     <StageSection
                         key={i}

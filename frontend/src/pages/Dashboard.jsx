@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Compass, Lightbulb, BookOpen, Youtube, LogOut, Clock, Brain, Sparkles, RefreshCw, Moon, Sun, GitBranch } from 'lucide-react';
@@ -8,7 +8,7 @@ import ResourcePanel from '../components/ResourcePanel';
 import RepoLearningPanel from '../components/RepoLearningPanel';
 import LoadingState from '../components/LoadingState';
 import TubesBackground from '../components/TubesBackground';
-import LearningPathMap from '../components/LearningPathMap';
+import LearningPathMap, { RepoOverview } from '../components/LearningPathMap';
 import { cn } from '../lib/utils';
 import { auth } from '../firebase';
 import { API_BASE } from '../config/api';
@@ -158,7 +158,7 @@ const Dashboard = () => {
 
     // UI states
     const [selectedNode, setSelectedNode] = useState(null);
-    const [activeTab, setActiveTab] = useState('recommendations');
+    const [activeTab, setActiveTab] = useState('resources');
     const [panelWidth, setPanelWidth] = useState(() => {
         const saved = Number(sessionStorage.getItem('questmap_panel_width'));
         if (Number.isFinite(saved) && saved >= MIN_PANEL_WIDTH) {
@@ -175,6 +175,22 @@ const Dashboard = () => {
     const [isPanelMaximized, setIsPanelMaximized] = useState(false);
     const [theme, setTheme] = useState(() => sessionStorage.getItem('questmap_theme') || 'dark');
     const isLightTheme = theme === 'light';
+
+    const tabs = useMemo(() => {
+        if (profile?.source_type === 'repo') {
+            return [
+                { id: 'resources', label: 'Resources', icon: Youtube, color: 'text-red-400', accent: 'bg-red-400' },
+                { id: 'repo', label: 'Repo learning path', icon: GitBranch, color: 'text-blue-400', accent: 'bg-blue-400' },
+                { id: 'practice', label: 'Practice', icon: BookOpen, color: 'text-emerald-400', accent: 'bg-emerald-400' },
+            ];
+        } else {
+            return [
+                { id: 'resources', label: 'Resources', icon: Youtube, color: 'text-red-400', accent: 'bg-red-400' },
+                { id: 'recommendations', label: 'Recommendations', icon: Lightbulb, color: 'text-amber-400', accent: 'bg-amber-400' },
+                { id: 'practice', label: 'Practice', icon: BookOpen, color: 'text-emerald-400', accent: 'bg-emerald-400' },
+            ];
+        }
+    }, [profile?.source_type]);
 
     // Per-node cache: { [nodeId]: { practice, resources } }
     const nodeCacheRef = useRef(null);
@@ -577,7 +593,7 @@ const Dashboard = () => {
                 : 'Prioritizing objectives to bridge systemic knowledge gaps';
 
         return (
-            <div className="min-h-screen bg-[#0a0b10] text-white flex items-center justify-center">
+            <div className="min-h-screen bg-[#15171e] text-white flex items-center justify-center">
                 <TubesBackground className="w-full h-full flex items-center justify-center" enableClickInteraction={false}>
                     <div className="flex flex-col items-center justify-center h-full">
                         <LoadingState message={msg} subMessage={sub} />
@@ -589,7 +605,7 @@ const Dashboard = () => {
 
     if (error && !initialLoadComplete) {
         return (
-            <div className="min-h-screen bg-[#0a0b10] text-white flex items-center justify-center p-6">
+            <div className="min-h-screen bg-[#15171e] text-white flex items-center justify-center p-6">
                 <div className="max-w-md text-center">
                     <div className="text-red-400 text-5xl mb-4 font-outfit uppercase">System Failure</div>
                     <h2 className="text-xl font-black mb-2 uppercase tracking-tighter">Neural Lattice Collapse</h2>
@@ -608,7 +624,7 @@ const Dashboard = () => {
     }
 
     return (
-        <div className={`h-screen flex flex-col overflow-hidden selection:bg-blue-500/30 font-sans ${isLightTheme ? 'quest-theme-light bg-[#f0f2f5] text-gray-950' : 'bg-[#0a0b10] text-white'}`}>
+        <div className={`h-screen flex flex-col overflow-hidden selection:bg-blue-500/30 font-sans ${isLightTheme ? 'quest-theme-light bg-[#f0f2f5] text-gray-950' : 'bg-[#15171e] text-white'}`}>
             {/* Top Bar - Glassmorphism */}
             {!isPanelMaximized && (
                 <header className={`flex-shrink-0 border-b px-8 py-4 backdrop-blur-xl z-50 ${isLightTheme ? 'border-gray-200 bg-[#f8fafc]/80' : 'border-white/5 bg-[#11131a]/60'}`}>
@@ -625,12 +641,14 @@ const Dashboard = () => {
                                 <Brain className="w-4 h-4 text-purple-400" />
                                 <span className={cn("text-[11px] font-black uppercase tracking-widest max-w-[200px] truncate", isLightTheme ? "text-gray-700" : "text-gray-300")}>{dashboardTitle}</span>
                             </div>
-                            <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.2em] border ${profile.skill_level === 'beginner' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
-                                profile.skill_level === 'intermediate' ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' :
-                                    'bg-red-500/10 text-red-400 border-red-500/20'
-                                }`}>
-                                Tier: {profile.skill_level}
-                            </span>
+                            {profile.source_type !== 'repo' && (
+                                <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.2em] border ${profile.skill_level === 'beginner' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
+                                    profile.skill_level === 'intermediate' ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' :
+                                        'bg-red-500/10 text-red-400 border-red-500/20'
+                                    }`}>
+                                    Tier: {profile.skill_level}
+                                </span>
+                            )}
                         </div>
                         <div className="flex items-center gap-6">
                             {profileData && (
@@ -662,9 +680,7 @@ const Dashboard = () => {
                                     {isLightTheme ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
                                 </span>
                             </button>
-                            <button onClick={() => navigate('/quiz')} className="px-4 py-2 rounded-xl bg-blue-500/20 border border-blue-500/30 hover:bg-blue-500/40 text-[10px] font-black uppercase tracking-widest text-blue-300 hover:text-white transition-all">
-                                Test Mastery
-                            </button>
+
                             <button onClick={handleNewTopic} className={cn("px-4 py-2 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all", isLightTheme ? "bg-gray-100 border-gray-200 hover:bg-gray-200 text-gray-600 hover:text-gray-950" : "bg-white/5 border-white/10 hover:bg-white/10 text-white/60 hover:text-white")}>
                                 Change Mesh
                             </button>
@@ -687,6 +703,18 @@ const Dashboard = () => {
 
                 {/* Left: Learning Path Map */}
                 <div className={cn("flex-1 flex flex-col min-w-0 relative z-10", isPanelMaximized && "hidden")}>
+                    {/* Repo Summary Section */}
+                    {profile.source_type === 'repo' && mapData && (
+                        <div className="px-8 pt-6 pb-2 flex-shrink-0">
+                            <RepoOverview mapData={mapData} />
+                        </div>
+                    )}
+                    {/* Header below Repo Summary */}
+                    <div className="px-8 pt-4 pb-2 flex-shrink-0 flex items-center justify-between">
+                        <h2 className={`text-xl font-bold uppercase tracking-widest font-outfit ${isLightTheme ? 'text-gray-950' : 'text-white'}`}>
+                            Knowledge Map
+                        </h2>
+                    </div>
                     {/* Map */}
                     <div className="flex-1 overflow-hidden">
                         <LearningPathMap
@@ -735,13 +763,12 @@ const Dashboard = () => {
                     {/* Tab Selection */}
                     {!isPanelMaximized && (
                         <div className={cn("flex p-2 m-4 rounded-[1.5rem] border", isLightTheme ? "bg-gray-100 border-gray-200" : "bg-white/5 border-white/10")}>
-                            {TABS.map(tab => (
+                            {tabs.map(tab => (
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
-                                    className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all relative ${activeTab === tab.id ? (isLightTheme ? 'text-gray-950 shadow-sm' : 'text-white shadow-xl') : 'text-gray-500 hover:text-gray-400'
-                                        }`}
-                                >
+                                    className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all relative ${activeTab === tab.id ? (isLightTheme ? 'text-gray-950 shadow-sm' : 'text-white shadow-xl') : 'text-gray-500 hover:text-gray-400'}`}
+                                  >
                                     <tab.icon className={cn("w-4 h-4", activeTab === tab.id ? tab.color : "text-gray-600")} />
                                     {tab.label}
                                     {activeTab === tab.id && (
@@ -761,7 +788,7 @@ const Dashboard = () => {
                         <div className="px-8 pb-4">
                             <div className="flex items-center gap-3 opacity-30">
                                 {(() => {
-                                    const active = TABS.find(t => t.id === activeTab) || TABS[0];
+                                    const active = tabs.find(t => t.id === activeTab) || tabs[0];
                                     return (
                                         <>
                                             <div className={cn("w-2 h-2 rounded-full", active.accent)} />

@@ -1757,8 +1757,8 @@ const ResourcePanel = ({ resourceData, loading, selectedNode, userId, isLightThe
     const tabs = isRepo
         ? [
             { id: 'code', label: 'Code', icon: Code },
-            { id: 'youtube', label: 'YouTube', icon: Youtube },
             { id: 'articles', label: 'Articles', icon: BookOpen },
+            { id: 'youtube', label: 'YouTube', icon: Youtube },
           ]
         : [
             { id: 'youtube', label: 'YouTube', icon: Youtube },

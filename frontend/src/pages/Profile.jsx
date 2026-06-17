@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Compass, User, BookOpen, Target, Sparkles, ArrowRight, LogOut, History, Globe, GitBranch } from 'lucide-react';
+import { Compass, User, BookOpen, Target, Sparkles, ArrowRight, LogOut, History, Globe, GitBranch, Sun, Moon } from 'lucide-react';
+import { cn } from '../lib/utils';
 import { auth } from '../firebase';
 import { signOut } from 'firebase/auth';
 import LoadingState from '../components/LoadingState';
@@ -18,8 +19,8 @@ const SKILL_LEVELS = [
 ];
 
 const LEARNING_SOURCES = [
-    { value: 'topic', label: 'Topic', icon: BookOpen },
     { value: 'repo', label: 'GitHub Repo', icon: GitBranch },
+    { value: 'topic', label: 'Topic', icon: BookOpen },
 ];
 
 const SEARCH_HISTORY_KEY = 'questmap_search_history';
@@ -58,7 +59,17 @@ const saveSearchHistoryItem = (item) => {
 
 const Profile = () => {
     const navigate = useNavigate();
-    const [learningSource, setLearningSource] = useState('topic');
+    const [learningSource, setLearningSource] = useState('repo');
+    const [theme, setTheme] = useState(() => sessionStorage.getItem('questmap_theme') || 'dark');
+    const isLightTheme = theme === 'light';
+
+    const handleThemeToggle = useCallback(() => {
+        setTheme(current => {
+            const next = current === 'dark' ? 'light' : 'dark';
+            sessionStorage.setItem('questmap_theme', next);
+            return next;
+        });
+    }, []);
     const [topic, setTopic] = useState('');
     const [repoUrl, setRepoUrl] = useState('');
     const [skillLevel, setSkillLevel] = useState('beginner');
@@ -281,7 +292,7 @@ const Profile = () => {
                 )}
             </AnimatePresence>
 
-            <div className="min-h-screen bg-[#0a0a0a] text-white relative overflow-hidden font-sans selection:bg-blue-500/30 flex flex-col">
+            <div className={cn("min-h-screen relative overflow-hidden font-sans selection:bg-blue-500/30 flex flex-col transition-colors duration-300", isLightTheme ? "quest-theme-light bg-[#f0f2f5] text-gray-950" : "bg-[#15171e] text-white")}>
                 <div className="absolute inset-0 pointer-events-none">
                     <motion.div
                         animate={{
@@ -309,29 +320,53 @@ const Profile = () => {
                         <div className="bg-blue-600 p-2 rounded-xl shadow-2xl shadow-blue-600/40 group-hover:scale-110 transition-all duration-300">
                             <Compass className="w-5 h-5 text-white" />
                         </div>
-                        <span className="text-xl font-black tracking-tighter font-outfit uppercase">QuestMap</span>
+                        <span className={cn("text-xl font-black tracking-tighter font-outfit uppercase", isLightTheme ? "text-gray-950" : "text-white")}>QuestMap</span>
                     </div>
-                    {currentUser && (
-                        <div className="flex items-center gap-4 bg-white/5 border border-white/5 px-4 py-2 rounded-2xl backdrop-blur-xl">
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center font-black text-xs uppercase">
-                                {currentUser.displayName?.charAt(0) || 'U'}
-                            </div>
-                            <span className="text-[10px] font-black text-white/60 uppercase tracking-widest hidden md:block">
-                                {currentUser.displayName}
+                    <div className="flex items-center gap-6">
+                        <button
+                            type="button"
+                            onClick={handleThemeToggle}
+                            className={cn(
+                                "h-9 w-[76px] rounded-full border p-1 transition-colors flex items-center",
+                                isLightTheme ? "bg-gray-100 border-gray-300 justify-end" : "bg-white/5 border-white/10 justify-start"
+                            )}
+                            aria-label="Toggle light or dark theme"
+                            aria-pressed={isLightTheme}
+                        >
+                            <span className={cn(
+                                "h-7 w-7 rounded-full flex items-center justify-center shadow-sm transition-colors",
+                                isLightTheme ? "bg-white text-amber-500" : "bg-gray-800 text-blue-300"
+                            )}>
+                                {isLightTheme ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
                             </span>
-                            <LogOut className="w-4 h-4 text-white/30 hover:text-red-400 cursor-pointer transition-colors" onClick={handleLogout} />
-                        </div>
-                    )}
+                        </button>
+                        {currentUser && (
+                            <div className={cn("flex items-center gap-4 border px-4 py-2 rounded-2xl backdrop-blur-xl", isLightTheme ? "bg-gray-100 border-gray-200" : "bg-white/5 border-white/5")}>
+                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center font-black text-xs uppercase text-white">
+                                    {currentUser.displayName?.charAt(0) || 'U'}
+                                </div>
+                                <span className={cn("text-[10px] font-black uppercase tracking-widest hidden md:block", isLightTheme ? "text-gray-700" : "text-white/60")}>
+                                    {currentUser.displayName}
+                                </span>
+                                <LogOut className={cn("w-4 h-4 cursor-pointer transition-colors", isLightTheme ? "text-gray-400 hover:text-red-500" : "text-white/30 hover:text-red-400")} onClick={handleLogout} />
+                            </div>
+                        )}
+                    </div>
                 </nav>
 
                 <main className="flex-1 max-w-screen-xl mx-auto w-full px-8 py-4 relative z-10 flex flex-col justify-center">
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        className="grid grid-cols-1 lg:grid-cols-2 gap-12 bg-black/40 border border-white/10 p-12 lg:p-16 rounded-[4rem] backdrop-blur-[60px] shadow-2xl relative"
+                        className={cn(
+                            "grid grid-cols-1 lg:grid-cols-2 gap-12 border p-12 lg:p-16 rounded-[4rem] backdrop-blur-[60px] shadow-2xl relative transition-all duration-300",
+                            isLightTheme ? "bg-white/70 border-gray-200 shadow-gray-200/50" : "bg-black/40 border-white/10"
+                        )}
                     >
                         <div className="lg:col-span-2 text-center lg:text-left mb-4">
-                            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-black uppercase tracking-[0.3em] mb-4">
+                            <div className={cn("inline-flex items-center gap-2 px-4 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-[0.3em] mb-4",
+                                isLightTheme ? "bg-blue-50 border-blue-100 text-blue-600" : "bg-blue-500/10 border-blue-500/20 text-blue-400"
+                            )}>
                                 <Sparkles className="w-3 h-3" />
                                 Personalized Neural Path
                             </div>
@@ -345,7 +380,7 @@ const Profile = () => {
 
                         <div className="space-y-10">
                             <div className="space-y-4">
-                                <label className="flex items-center gap-3 text-[11px] font-black text-blue-400 uppercase tracking-[0.3em] font-outfit">
+                                <label className={cn("flex items-center gap-3 text-[11px] font-black uppercase tracking-[0.3em] font-outfit", isLightTheme ? "text-blue-600" : "text-blue-400")}>
                                     <Sparkles className="w-4 h-4" />
                                     Learning Source
                                 </label>
@@ -358,15 +393,20 @@ const Profile = () => {
                                                 key={source.value}
                                                 type="button"
                                                 onClick={() => setLearningSource(source.value)}
-                                                className={`rounded-[1.5rem] border p-4 text-left transition-all ${
+                                                className={cn(
+                                                    "rounded-[1.5rem] border p-4 text-left transition-all",
                                                     active
-                                                        ? 'border-blue-500/50 bg-blue-500/10 shadow-[0_0_30px_rgba(59,130,246,0.16)]'
-                                                        : 'border-white/5 bg-white/5 hover:border-white/20'
-                                                }`}
+                                                        ? (isLightTheme
+                                                            ? 'border-blue-500 bg-blue-50/50 shadow-[0_0_30px_rgba(59,130,246,0.1)]'
+                                                            : 'border-blue-500/50 bg-blue-500/10 shadow-[0_0_30px_rgba(59,130,246,0.16)]')
+                                                        : (isLightTheme
+                                                            ? 'border-gray-200 bg-gray-50 hover:border-gray-300'
+                                                            : 'border-white/5 bg-white/5 hover:border-white/20')
+                                                )}
                                             >
                                                 <div className="flex items-center gap-3">
-                                                    <Icon className={active ? 'w-4 h-4 text-blue-400' : 'w-4 h-4 text-white/30'} />
-                                                    <span className="text-[11px] font-black uppercase tracking-widest text-white">{source.label}</span>
+                                                    <Icon className={active ? (isLightTheme ? 'w-4 h-4 text-blue-600' : 'w-4 h-4 text-blue-400') : (isLightTheme ? 'w-4 h-4 text-gray-400' : 'w-4 h-4 text-white/30')} />
+                                                    <span className={cn("text-[11px] font-black uppercase tracking-widest", active ? (isLightTheme ? "text-blue-600" : "text-white") : (isLightTheme ? "text-gray-500" : "text-white/60"))}>{source.label}</span>
                                                 </div>
                                             </button>
                                         );
@@ -375,10 +415,20 @@ const Profile = () => {
                             </div>
 
                             <div className="space-y-4 group">
-                                <label className="flex items-center gap-3 text-[11px] font-black text-blue-400 uppercase tracking-[0.3em] font-outfit">
-                                    {isRepoMode ? <GitBranch className="w-4 h-4" /> : <BookOpen className="w-4 h-4" />}
-                                    {isRepoMode ? 'GitHub Repository' : 'Knowledge Domain'}
-                                </label>
+                                <div className="flex items-center justify-between">
+                                    <label className={cn("flex items-center gap-3 text-[11px] font-black uppercase tracking-[0.3em] font-outfit", isLightTheme ? "text-blue-600" : "text-blue-400")}>
+                                        {isRepoMode ? <GitBranch className="w-4 h-4" /> : <BookOpen className="w-4 h-4" />}
+                                        {isRepoMode ? 'GitHub Repository' : 'Knowledge Domain'}
+                                    </label>
+                                    {isRepoMode && !showHistory && (
+                                        <button
+                                            onClick={() => setShowHistory(true)}
+                                            className={cn("text-[9px] font-black uppercase tracking-widest transition-colors flex items-center gap-2", isLightTheme ? "text-gray-500 hover:text-blue-600" : "text-white/30 hover:text-blue-400")}
+                                        >
+                                            <History className="w-3.5 h-3.5" /> View Archives
+                                        </button>
+                                    )}
+                                </div>
                                 <div className="relative">
                                     <input
                                         type={isRepoMode ? 'url' : 'text'}
@@ -392,7 +442,12 @@ const Profile = () => {
                                         onBlur={() => window.setTimeout(() => setShowSearchSuggestions(false), 120)}
                                         placeholder={isRepoMode ? 'https://github.com/org/repo' : 'What domain will you conquer today?'}
                                         autoComplete="off"
-                                        className="w-full bg-white/5 border border-white/10 rounded-3xl py-6 px-10 pr-16 text-lg text-white font-medium placeholder:text-gray-700 focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/50 outline-none transition-all duration-300"
+                                        className={cn(
+                                            "w-full rounded-3xl py-6 px-10 pr-16 text-lg font-medium outline-none transition-all duration-300",
+                                            isLightTheme
+                                                ? "bg-gray-50 border border-gray-200 text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                                                : "bg-white/5 border border-white/10 text-white placeholder:text-gray-700 focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/50"
+                                        )}
                                         required
                                     />
                                     <div className="absolute right-8 top-1/2 -translate-y-1/2 w-3 h-3 bg-blue-500 rounded-full blur-[2px] animate-pulse" />
@@ -403,7 +458,12 @@ const Profile = () => {
                                                 animate={{ opacity: 1, y: 0, scale: 1 }}
                                                 exit={{ opacity: 0, y: -8, scale: 0.98 }}
                                                 transition={{ duration: 0.16 }}
-                                                className="absolute left-0 right-0 top-[calc(100%+0.75rem)] z-40 overflow-hidden rounded-3xl border border-white/10 bg-[#101014]/95 shadow-2xl shadow-black/40 backdrop-blur-2xl"
+                                                className={cn(
+                                                    "absolute left-0 right-0 top-[calc(100%+0.75rem)] z-40 overflow-hidden rounded-3xl border shadow-2xl backdrop-blur-2xl transition-colors duration-300",
+                                                    isLightTheme
+                                                        ? "border-gray-200 bg-white/95 shadow-gray-200/50"
+                                                        : "border-white/10 bg-[#101014]/95 shadow-black/40"
+                                                )}
                                             >
                                                 <div className="max-h-72 overflow-y-auto p-2 custom-scrollbar">
                                                     {sourceSuggestions.map((suggestion) => {
@@ -416,18 +476,25 @@ const Profile = () => {
                                                                     event.preventDefault();
                                                                     handleSuggestionSelect(suggestion);
                                                                 }}
-                                                                className="w-full rounded-2xl px-4 py-3 text-left transition-colors hover:bg-white/10 focus:bg-white/10 focus:outline-none"
+                                                                className={cn(
+                                                                    "w-full rounded-2xl px-4 py-3 text-left transition-colors focus:outline-none",
+                                                                    isLightTheme
+                                                                        ? "hover:bg-gray-100 focus:bg-gray-100"
+                                                                        : "hover:bg-white/10 focus:bg-white/10"
+                                                                )}
                                                             >
                                                                 <div className="flex items-center gap-3">
-                                                                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl bg-blue-500/10 border border-blue-500/20">
-                                                                        <SuggestionIcon className="h-4 w-4 text-blue-300" />
+                                                                    <div className={cn("flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl border",
+                                                                        isLightTheme ? "bg-blue-50 border-blue-100" : "bg-blue-500/10 border-blue-500/20"
+                                                                    )}>
+                                                                        <SuggestionIcon className={cn("h-4 w-4", isLightTheme ? "text-blue-600" : "text-blue-300")} />
                                                                     </div>
                                                                     <div className="min-w-0 flex-1">
-                                                                        <p className="truncate text-sm font-bold text-white">{suggestion.value}</p>
+                                                                        <p className={cn("truncate text-sm font-bold", isLightTheme ? "text-gray-900" : "text-white")}>{suggestion.value}</p>
                                                                         <div className="mt-1 flex items-center gap-2">
-                                                                            <span className="text-[9px] font-black uppercase tracking-widest text-white/35">{suggestion.label}</span>
-                                                                            <span className="h-1 w-1 rounded-full bg-white/20" />
-                                                                            <span className="text-[9px] font-black uppercase tracking-widest text-blue-300/80">{suggestion.skill_level}</span>
+                                                                            <span className={cn("text-[9px] font-black uppercase tracking-widest", isLightTheme ? "text-gray-400" : "text-white/35")}>{suggestion.label}</span>
+                                                                            <span className={cn("h-1 w-1 rounded-full", isLightTheme ? "bg-gray-200" : "bg-white/20")} />
+                                                                            <span className={cn("text-[9px] font-black uppercase tracking-widest", isLightTheme ? "text-blue-600" : "text-blue-300/80")}>{suggestion.skill_level}</span>
                                                                         </div>
                                                                     </div>
                                                                 </div>
@@ -442,54 +509,62 @@ const Profile = () => {
                             </div>
 
                             {!showHistory ? (
-                                <div className="space-y-4">
-                                    <div className="flex items-center justify-between">
-                                        <label className="flex items-center gap-3 text-[11px] font-black text-purple-400 uppercase tracking-[0.3em] font-outfit">
-                                            <Target className="w-4 h-4" />
-                                            Experience vector
-                                        </label>
-                                        <button
-                                            onClick={() => setShowHistory(true)}
-                                            className="text-[9px] font-black uppercase tracking-widest text-white/30 hover:text-blue-400 transition-colors flex items-center gap-2"
-                                        >
-                                            <History className="w-3.5 h-3.5" /> View Archives
-                                        </button>
-                                    </div>
-                                    <div className="grid grid-cols-3 gap-4">
-                                        {SKILL_LEVELS.map((level) => (
+                                !isRepoMode && (
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <label className={cn("flex items-center gap-3 text-[11px] font-black uppercase tracking-[0.3em] font-outfit", isLightTheme ? "text-purple-600" : "text-purple-400")}>
+                                                <Target className="w-4 h-4" />
+                                                Experience vector
+                                            </label>
                                             <button
-                                                key={level.value}
-                                                type="button"
-                                                onClick={() => setSkillLevel(level.value)}
-                                                className={`relative rounded-[2rem] p-6 border text-center transition-all duration-500 group overflow-hidden ${skillLevel === level.value
-                                                    ? 'border-blue-500/50 bg-blue-500/10 shadow-[0_0_40px_rgba(59,130,246,0.2)]'
-                                                    : 'border-white/5 bg-white/5 hover:border-white/20'
-                                                    }`}
+                                                onClick={() => setShowHistory(true)}
+                                                className={cn("text-[9px] font-black uppercase tracking-widest transition-colors flex items-center gap-2", isLightTheme ? "text-gray-500 hover:text-blue-600" : "text-white/30 hover:text-blue-400")}
                                             >
-                                                <div className="relative z-10">
-                                                    <span className="text-3xl mb-3 block group-hover:scale-125 transition-transform duration-500">{level.icon}</span>
-                                                    <span className="text-white text-[11px] font-black block uppercase tracking-tighter font-outfit">{level.label}</span>
-                                                </div>
-                                                {skillLevel === level.value && (
-                                                    <motion.div
-                                                        layoutId="skill-blob"
-                                                        className="absolute inset-0 bg-gradient-to-t from-blue-600/10 to-transparent pointer-events-none"
-                                                    />
-                                                )}
+                                                <History className="w-3.5 h-3.5" /> View Archives
                                             </button>
-                                        ))}
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-4">
+                                            {SKILL_LEVELS.map((level) => (
+                                                <button
+                                                    key={level.value}
+                                                    type="button"
+                                                    onClick={() => setSkillLevel(level.value)}
+                                                    className={cn(
+                                                        "relative rounded-[2rem] p-6 border text-center transition-all duration-500 group overflow-hidden",
+                                                        skillLevel === level.value
+                                                            ? (isLightTheme
+                                                                ? 'border-blue-500 bg-blue-50/50 shadow-[0_0_40px_rgba(59,130,246,0.15)]'
+                                                                : 'border-blue-500/50 bg-blue-500/10 shadow-[0_0_40px_rgba(59,130,246,0.2)]')
+                                                            : (isLightTheme
+                                                                ? 'border-gray-200 bg-gray-50 hover:border-gray-300'
+                                                                : 'border-white/5 bg-white/5 hover:border-white/20')
+                                                    )}
+                                                >
+                                                    <div className="relative z-10">
+                                                        <span className="text-3xl mb-3 block group-hover:scale-125 transition-transform duration-500">{level.icon}</span>
+                                                        <span className={cn("text-[11px] font-black block uppercase tracking-tighter font-outfit", isLightTheme ? "text-gray-950" : "text-white")}>{level.label}</span>
+                                                    </div>
+                                                    {skillLevel === level.value && (
+                                                        <motion.div
+                                                            layoutId="skill-blob"
+                                                            className="absolute inset-0 bg-gradient-to-t from-blue-600/10 to-transparent pointer-events-none"
+                                                        />
+                                                    )}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
-                                </div>
+                                )
                             ) : (
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between">
-                                        <label className="flex items-center gap-3 text-[11px] font-black text-blue-400 uppercase tracking-[0.3em] font-outfit">
+                                        <label className={cn("flex items-center gap-3 text-[11px] font-black uppercase tracking-[0.3em] font-outfit", isLightTheme ? "text-blue-600" : "text-blue-400")}>
                                             <History className="w-4 h-4" />
                                             Neural Archives
                                         </label>
                                         <button
                                             onClick={() => setShowHistory(false)}
-                                            className="text-[9px] font-black uppercase tracking-widest text-white/30 hover:text-blue-400 transition-colors"
+                                            className={cn("text-[9px] font-black uppercase tracking-widest transition-colors", isLightTheme ? "text-gray-500 hover:text-blue-600" : "text-white/30 hover:text-blue-400")}
                                         >
                                             Back to Forge
                                         </button>
@@ -508,40 +583,54 @@ const Profile = () => {
 
                         <div className="space-y-8 flex flex-col justify-between">
                             <div className="space-y-8">
-                                <div className="space-y-4">
-                                    <label className="flex items-center gap-3 text-[11px] font-black text-emerald-400 uppercase tracking-[0.3em] font-outfit">
-                                        <User className="w-4 h-4" />
-                                        Cognitive state <span className="text-white/20 font-black lowercase tracking-normal ml-2">(optional)</span>
-                                    </label>
-                                    <textarea
-                                        value={background}
-                                        onChange={(e) => setBackground(e.target.value)}
-                                        placeholder="Describe your current mental model..."
-                                        rows={2}
-                                        className="w-full bg-white/5 border border-white/10 rounded-3xl py-5 px-8 text-base text-white/80 placeholder:text-gray-700 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/40 outline-none transition-all duration-300 resize-none"
-                                    />
-                                </div>
+                                {!isRepoMode && (
+                                    <>
+                                        <div className="space-y-4">
+                                            <label className={cn("flex items-center gap-3 text-[11px] font-black uppercase tracking-[0.3em] font-outfit", isLightTheme ? "text-emerald-600" : "text-emerald-400")}>
+                                                <User className="w-4 h-4" />
+                                                Cognitive state <span className={cn("font-black lowercase tracking-normal ml-2", isLightTheme ? "text-gray-400" : "text-white/20")}>(optional)</span>
+                                            </label>
+                                            <textarea
+                                                value={background}
+                                                onChange={(e) => setBackground(e.target.value)}
+                                                placeholder="Describe your current mental model..."
+                                                rows={2}
+                                                className={cn(
+                                                    "w-full rounded-3xl py-5 px-8 text-base outline-none transition-all duration-300 resize-none",
+                                                    isLightTheme
+                                                        ? "bg-gray-50 border border-gray-200 text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                                                        : "bg-white/5 border border-white/10 text-white/80 placeholder:text-gray-700 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/40"
+                                                )}
+                                            />
+                                        </div>
 
-                                <div className="space-y-4">
-                                    <label className="flex items-center gap-3 text-[11px] font-black text-amber-400 uppercase tracking-[0.3em] font-outfit">
-                                        <Sparkles className="w-4 h-4" />
-                                        End objective <span className="text-white/20 font-black lowercase tracking-normal ml-2">(optional)</span>
-                                    </label>
-                                    <textarea
-                                        value={goals}
-                                        onChange={(e) => setGoals(e.target.value)}
-                                        placeholder="What is your definition of success?"
-                                        rows={2}
-                                        className="w-full bg-white/5 border border-white/10 rounded-3xl py-5 px-8 text-base text-white/80 placeholder:text-gray-700 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500/40 outline-none transition-all duration-300 resize-none"
-                                    />
-                                </div>
+                                        <div className="space-y-4">
+                                            <label className={cn("flex items-center gap-3 text-[11px] font-black uppercase tracking-[0.3em] font-outfit", isLightTheme ? "text-amber-600" : "text-amber-400")}>
+                                                <Sparkles className="w-4 h-4" />
+                                                End objective <span className={cn("font-black lowercase tracking-normal ml-2", isLightTheme ? "text-gray-400" : "text-white/20")}>(optional)</span>
+                                            </label>
+                                            <textarea
+                                                value={goals}
+                                                onChange={(e) => setGoals(e.target.value)}
+                                                placeholder="What is your definition of success?"
+                                                rows={2}
+                                                className={cn(
+                                                    "w-full rounded-3xl py-5 px-8 text-base outline-none transition-all duration-300 resize-none",
+                                                    isLightTheme
+                                                        ? "bg-gray-50 border border-gray-200 text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                                                        : "bg-white/5 border border-white/10 text-white/80 placeholder:text-gray-700 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500/40"
+                                                )}
+                                            />
+                                        </div>
+                                    </>
+                                )}
                             </div>
 
                             {currentUser && (
                                 <div className="space-y-4">
-                                    <label className="flex items-center gap-3 text-[11px] font-black text-purple-400 uppercase tracking-[0.3em] font-outfit">
+                                    <label className={cn("flex items-center gap-3 text-[11px] font-black uppercase tracking-[0.3em] font-outfit", isLightTheme ? "text-purple-600" : "text-purple-400")}>
                                         <BookOpen className="w-4 h-4" />
-                                        Context Upload <span className="text-white/20 font-black lowercase tracking-normal ml-2">(optional)</span>
+                                        Context Upload <span className={cn("font-black lowercase tracking-normal ml-2", isLightTheme ? "text-gray-400" : "text-white/20")}>(optional)</span>
                                     </label>
                                     <DocumentUpload
                                         userId={currentUser.uid}
@@ -553,9 +642,9 @@ const Profile = () => {
 
                             {currentUser && (
                                 <div className="space-y-4">
-                                    <label className="flex items-center gap-3 text-[11px] font-black text-blue-400 uppercase tracking-[0.3em] font-outfit">
+                                    <label className={cn("flex items-center gap-3 text-[11px] font-black uppercase tracking-[0.3em] font-outfit", isLightTheme ? "text-blue-600" : "text-blue-400")}>
                                         <Globe className="w-4 h-4" />
-                                        Article Domain Preferences <span className="text-white/20 font-black lowercase tracking-normal ml-2">(optional)</span>
+                                        Article Domain Preferences <span className={cn("font-black lowercase tracking-normal ml-2", isLightTheme ? "text-gray-400" : "text-white/20")}>(optional)</span>
                                     </label>
                                     <DomainPreferences userId={currentUser.uid} />
                                 </div>
@@ -565,10 +654,16 @@ const Profile = () => {
                                 type="submit"
                                 onClick={handleSubmit}
                                 disabled={!isValid || isSubmitting}
-                                className={`w-full py-6 rounded-[2rem] font-black text-sm uppercase tracking-[0.4em] flex items-center justify-center gap-6 transition-all duration-500 group relative overflow-hidden ${isValid && !isSubmitting
-                                    ? 'bg-white text-black shadow-[0_20px_60px_-15px_rgba(255,255,255,0.3)] hover:scale-[1.02] active:scale-[0.98]'
-                                    : 'bg-white/5 text-white/20 border border-white/5'
-                                    }`}
+                                className={cn(
+                                    "w-full py-6 rounded-[2rem] font-black text-sm uppercase tracking-[0.4em] flex items-center justify-center gap-6 transition-all duration-500 group relative overflow-hidden",
+                                    isValid && !isSubmitting
+                                        ? (isLightTheme
+                                            ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-[0_20px_60px_-15px_rgba(59,130,246,0.3)] hover:scale-[1.02] active:scale-[0.98]'
+                                            : 'bg-white text-black shadow-[0_20px_60px_-15px_rgba(255,255,255,0.3)] hover:scale-[1.02] active:scale-[0.98]')
+                                        : (isLightTheme
+                                            ? 'bg-gray-100 text-gray-400 border border-gray-200'
+                                            : 'bg-white/5 text-white/20 border border-white/5')
+                                )}
                             >
                                 <AnimatePresence mode="wait">
                                     {isSubmitting ? (
@@ -578,7 +673,7 @@ const Profile = () => {
                                             animate={{ opacity: 1, scale: 1 }}
                                             className="flex items-center gap-4"
                                         >
-                                            <div className="w-5 h-5 border-[3px] border-black/10 border-t-black rounded-full animate-spin" />
+                                            <div className={cn("w-5 h-5 border-[3px] rounded-full animate-spin", isLightTheme ? "border-white/10 border-t-white" : "border-black/10 border-t-black")} />
                                             Connecting to mesh...
                                         </motion.div>
                                     ) : (
@@ -596,8 +691,8 @@ const Profile = () => {
                             </motion.button>
                         </div>
 
-                        <div className="lg:col-span-2 pt-10 border-t border-white/5 flex items-center justify-between pointer-events-none opacity-20">
-                            <span className="text-[10px] font-black tracking-[1em] text-white">PROTO_ID: QMAP_RESTORE</span>
+                        <div className={cn("lg:col-span-2 pt-10 border-t flex items-center justify-between pointer-events-none opacity-20", isLightTheme ? "border-gray-200" : "border-white/5")}>
+                            <span className={cn("text-[10px] font-black tracking-[1em]", isLightTheme ? "text-gray-900" : "text-white")}>PROTO_ID: QMAP_RESTORE</span>
                             <div className="flex gap-2">
                                 <div className="w-2 h-2 rounded-full bg-blue-500" />
                                 <div className="w-2 h-2 rounded-full bg-purple-500" />

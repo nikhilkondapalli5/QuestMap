@@ -375,9 +375,9 @@ function mapYouTubeSearchItem(item, searchQuery, index, fromSubscription = false
     };
 }
 
-async function searchYouTubeApiVideos(searchQuery, subscribedChannels = [], displayCount = YOUTUBE_DISPLAY_RESULT_COUNT) {
-    if (!process.env.YOUTUBE_API_KEY) {
-        console.warn('YOUTUBE_API_KEY is missing. Cannot fetch YouTube API search results.');
+async function searchYouTubeApiVideos(searchQuery, subscribedChannels = [], displayCount = YOUTUBE_DISPLAY_RESULT_COUNT, ytAccessToken = null) {
+    if (!ytAccessToken && !process.env.YOUTUBE_API_KEY) {
+        console.warn('Neither ytAccessToken nor YOUTUBE_API_KEY is available. Cannot fetch YouTube API search results.');
         return [];
     }
 
@@ -391,9 +391,15 @@ async function searchYouTubeApiVideos(searchQuery, subscribedChannels = [], disp
         url.searchParams.set('safeSearch', 'moderate');
         url.searchParams.set('videoDuration', 'medium');
         url.searchParams.set('videoEmbeddable', 'true');
-        url.searchParams.set('key', process.env.YOUTUBE_API_KEY);
 
-        const res = await fetch(url.toString());
+        const headers = {};
+        if (ytAccessToken) {
+            headers['Authorization'] = `Bearer ${ytAccessToken}`;
+        } else {
+            url.searchParams.set('key', process.env.YOUTUBE_API_KEY);
+        }
+
+        const res = await fetch(url.toString(), { headers });
         if (!res.ok) {
             const errorText = await res.text();
             throw new Error(`YouTube API returned ${res.status}: ${errorText}`);
@@ -416,8 +422,15 @@ async function searchYouTubeApiVideos(searchQuery, subscribedChannels = [], disp
                 const statsUrl = new URL('https://www.googleapis.com/youtube/v3/videos');
                 statsUrl.searchParams.set('part', 'contentDetails,statistics');
                 statsUrl.searchParams.set('id', videoIds.join(','));
-                statsUrl.searchParams.set('key', process.env.YOUTUBE_API_KEY);
-                const statsRes = await fetch(statsUrl.toString());
+                
+                const statsHeaders = {};
+                if (ytAccessToken) {
+                    statsHeaders['Authorization'] = `Bearer ${ytAccessToken}`;
+                } else {
+                    statsUrl.searchParams.set('key', process.env.YOUTUBE_API_KEY);
+                }
+                
+                const statsRes = await fetch(statsUrl.toString(), { headers: statsHeaders });
                 if (statsRes.ok) {
                     const statsData = await statsRes.json();
                     for (const v of (statsData.items || [])) {
@@ -1812,7 +1825,7 @@ Return JSON in this format:
             callGemini(resourcePrompt), // JSON format, no YouTube videos
             searchArticles(topic, node_label, userId, { keyConcepts: key_concepts, overrideQuery: dynamicQuery }), // Text format, YES Search Grounding
             searchSubscribedLocalVideos(dynamicQuery, userId, 3),
-            searchYouTubeApiVideos(dynamicQuery, subscribedChannels, 8)
+            searchYouTubeApiVideos(dynamicQuery, subscribedChannels, 8, ytAccessToken)
         ]);
 
         const grounding = buildGroundingContext({
@@ -2971,4 +2984,5 @@ if (require.main === module) {
     });
 }
 
+app.searchYouTubeApiVideos = searchYouTubeApiVideos;
 module.exports = app;

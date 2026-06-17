@@ -133,8 +133,9 @@ ${channelListStr}`;
         if (subErr) console.error('[Supabase] Sub Upsert Error:', subErr);
     }
 
-    // BACKGROUND INGESTION TRIGGER
+    // BACKGROUND INGESTION TRIGGER (TEMPORARILY DISABLED)
     // Process channels sequentially in the background to avoid Gemini Rate Limits (429)
+    /*
     (async () => {
         for (const ch of allChannels) {
             try {
@@ -146,6 +147,7 @@ ${channelListStr}`;
             }
         }
     })();
+    */
 
     return allChannels;
 }
