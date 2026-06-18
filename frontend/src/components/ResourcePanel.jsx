@@ -1080,6 +1080,7 @@ const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, onToggleMaximiz
     const activeFileId = activeReference?.fileId || activeCodeFile?.fileId;
     const activeFile = activeFileId ? fullFiles[activeFileId] : null;
     const displayCode = showFullFile && activeFile?.content ? activeFile.content : activeReference?.snippet;
+    const activeSnippetText = activeReference?.anchorSnippet || activeReference?.snippet || displayCode || '';
     const displayStartLine = showFullFile && activeFile?.content ? 1 : activeReference?.startLine;
     const anchorStartLine = activeReference?.anchorStartLine || activeReference?.startLine;
     const anchorEndLine = activeReference?.anchorEndLine || activeReference?.endLine;
@@ -1130,6 +1131,88 @@ const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, onToggleMaximiz
         return 'beginner';
     }, []);
 
+    const startExplain = React.useCallback(async (textToExplain, sourceLabel = 'selected code snippet') => {
+        const cleanedText = String(textToExplain || '').trim();
+        if (!cleanedText) return;
+
+        setSelectionInfo(null);
+        try {
+            window.getSelection()?.removeAllRanges();
+        } catch (_) {}
+
+        if (onToggleMaximize) {
+            onToggleMaximize(true);
+        }
+        setIsSidebarCollapsed(false);
+
+        const skillLevel = getSkillLevel();
+        const topic = selectedNode?.label || '';
+        const surroundingContext = displayCode || '';
+
+        const initialExplainData = {
+            snippet: cleanedText,
+            filePath: activeFilePath,
+            language: activeReference?.language || activeCodeFile?.language || 'javascript',
+            surroundingContext,
+            topic,
+            history: [],
+            loading: true,
+            error: null,
+        };
+        setExplainData(initialExplainData);
+
+        try {
+            const response = await fetch(`${API_BASE}/repo/code/explain`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    selectedSnippet: cleanedText,
+                    filePath: activeFilePath,
+                    language: initialExplainData.language,
+                    surroundingContext,
+                    topic,
+                    skillLevel,
+                    history: [],
+                }),
+            });
+
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Failed to explain code');
+
+            setExplainData(prev => {
+                if (!prev) return null;
+                return {
+                    ...prev,
+                    loading: false,
+                    history: [
+                        { role: 'user', text: `Please explain this ${sourceLabel}: ${cleanedText}` },
+                        { role: 'model', text: data.responseText || '' }
+                    ],
+                };
+            });
+        } catch (err) {
+            setExplainData(prev => {
+                if (!prev) return null;
+                return {
+                    ...prev,
+                    loading: false,
+                    error: err.message,
+                };
+            });
+        }
+    }, [activeFilePath, activeReference, activeCodeFile, displayCode, selectedNode, getSkillLevel, onToggleMaximize]);
+
+    const handleExplainSnippet = React.useCallback(() => {
+        startExplain(activeSnippetText, 'snippet');
+    }, [startExplain, activeSnippetText]);
+
+    const handleCopySnippet = React.useCallback(() => {
+        const text = activeSnippetText || displayCode || '';
+        if (text.trim()) {
+            navigator.clipboard?.writeText(text);
+        }
+    }, [activeSnippetText, displayCode]);
+
     const handleMouseUp = React.useCallback((e) => {
         const selection = window.getSelection();
         if (!selection || selection.isCollapsed) {
@@ -1165,75 +1248,8 @@ const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, onToggleMaximiz
 
     const handleExplainSelection = React.useCallback(async () => {
         if (!selectionInfo) return;
-        const textToExplain = selectionInfo.text;
-        
-        setSelectionInfo(null);
-        try {
-            window.getSelection()?.removeAllRanges();
-        } catch (_) {}
-
-        if (onToggleMaximize) {
-            onToggleMaximize(true);
-        }
-        setIsSidebarCollapsed(false);
-
-        const skillLevel = getSkillLevel();
-        const topic = selectedNode?.label || '';
-        const surroundingContext = displayCode || '';
-
-        const initialExplainData = {
-            snippet: textToExplain,
-            filePath: activeFilePath,
-            language: activeReference?.language || activeCodeFile?.language || 'javascript',
-            surroundingContext,
-            topic,
-            history: [],
-            loading: true,
-            error: null,
-        };
-        setExplainData(initialExplainData);
-
-        try {
-            const requestUserId = userId || sessionStorage.getItem('questmap_uid') || 'anonymous';
-            const response = await fetch(`${API_BASE}/repo/code/explain`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    selectedSnippet: textToExplain,
-                    filePath: activeFilePath,
-                    language: initialExplainData.language,
-                    surroundingContext,
-                    topic,
-                    skillLevel,
-                    history: [],
-                }),
-            });
-
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error || 'Failed to explain code');
-
-            setExplainData(prev => {
-                if (!prev) return null;
-                return {
-                    ...prev,
-                    loading: false,
-                    history: [
-                        { role: 'user', text: `Please explain this selected code snippet: ${textToExplain}` },
-                        { role: 'model', text: data.responseText || '' }
-                    ],
-                };
-            });
-        } catch (err) {
-            setExplainData(prev => {
-                if (!prev) return null;
-                return {
-                    ...prev,
-                    loading: false,
-                    error: err.message,
-                };
-            });
-        }
-    }, [selectionInfo, activeFilePath, activeReference, activeCodeFile, displayCode, selectedNode, getSkillLevel, userId, onToggleMaximize]);
+        startExplain(selectionInfo.text, 'selected lines');
+    }, [selectionInfo, startExplain]);
 
     const handleSendFollowup = React.useCallback(async (e) => {
         if (e) e.preventDefault();
@@ -1535,7 +1551,7 @@ const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, onToggleMaximiz
                                             </p>
                                         )}
 
-                                        <div className="overflow-hidden rounded-xl border border-gray-700/40 bg-gray-950/70">
+                                        <div className="group/code-viewer overflow-hidden rounded-xl border border-gray-700/40 bg-gray-950/70">
                                             <div className="flex items-center justify-between border-b border-gray-800 px-3 py-2">
                                                 <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">
                                                     {displayLabel}
@@ -1545,7 +1561,30 @@ const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, onToggleMaximiz
                                                             ? ` ${formatCodeConfidence(activeReference.score)}`
                                                             : ''}
                                                 </span>
-                                                <span className="text-[9px] font-bold text-gray-600">{activeReference?.language || activeCodeFile?.language || 'text'}</span>
+                                                <div className="flex items-center gap-2">
+                                                    {activeSnippetText && (
+                                                        <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover/code-viewer:opacity-100 focus-within:opacity-100">
+                                                            <button
+                                                                type="button"
+                                                                onClick={handleExplainSnippet}
+                                                                className="flex items-center gap-1 rounded-md border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-emerald-300 transition hover:border-emerald-400/40 hover:bg-emerald-500/15"
+                                                                title="Explain this snippet"
+                                                            >
+                                                                <Sparkles className="h-3 w-3" />
+                                                                Explain snippet
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={handleCopySnippet}
+                                                                className="rounded-md border border-gray-700/60 bg-gray-800/60 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-gray-300 transition hover:border-gray-600 hover:text-white"
+                                                                title="Copy this snippet"
+                                                            >
+                                                                Copy
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                    <span className="text-[9px] font-bold text-gray-600">{activeReference?.language || activeCodeFile?.language || 'text'}</span>
+                                                </div>
                                             </div>
                                             {displayCode && (
                                                 <CodeBlockWithHighlights
@@ -1576,18 +1615,7 @@ const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, onToggleMaximiz
                                             className="selection-popup-btn flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 rounded-lg transition-all"
                                         >
                                             <Sparkles className="w-3.5 h-3.5" />
-                                            <span>Explain</span>
-                                        </button>
-                                        <div className="w-px h-3 bg-gray-700/60" />
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                navigator.clipboard.writeText(selectionInfo.text);
-                                                setSelectionInfo(null);
-                                            }}
-                                            className="selection-popup-btn px-2.5 py-1 text-[10px] font-bold text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-all"
-                                        >
-                                            Copy
+                                            <span>Explain selection</span>
                                         </button>
                                     </div>
                                 )}
