@@ -20,7 +20,7 @@ const TABS = [
     { id: 'resources', label: 'Resources', icon: Youtube, color: 'text-red-400', accent: 'bg-red-400' },
 ];
 
-const DASHBOARD_CACHE_VERSION = 'repo-source-map-v6';
+const DASHBOARD_CACHE_VERSION = 'repo-source-map-v7';
 const NODE_CACHE_VERSION = 'grounded-node-data-v3';
 const DEFAULT_PANEL_WIDTH = 480;
 const MIN_PANEL_WIDTH = 360;
@@ -47,15 +47,41 @@ const MasteryOverview = ({ summary }) => {
     );
 };
 
-const REPO_BLOOM_SEQUENCE = ['Understand', 'Understand', 'Apply', 'Apply', 'Analyze', 'Analyze', 'Evaluate', 'Evaluate', 'Create', 'Create'];
-
 const getProfileSourceKey = (profile) => {
     const type = profile?.source_type || 'topic';
     const value = type === 'repo' ? (profile?.repo_url || profile?.topic || '') : (profile?.topic || '');
     return `${type}:${String(value).trim().toLowerCase()}`;
 };
 
-const getRepoBloomLevel = (index) => REPO_BLOOM_SEQUENCE[Math.min(index, REPO_BLOOM_SEQUENCE.length - 1)];
+const buildEvidenceClusterMap = (codeGraph) => {
+    const map = new Map();
+    for (const cluster of codeGraph?.clusters || []) {
+        if (cluster.evidence_id) map.set(cluster.evidence_id, cluster);
+    }
+    return map;
+};
+
+const resolveConceptCodeRole = (concept, evidenceClusterMap) => {
+    const roles = (concept?.code_cluster_ids || [])
+        .map(id => evidenceClusterMap.get(id)?.role)
+        .filter(Boolean);
+    if (!roles.length) return null;
+    const counts = {};
+    roles.forEach(role => { counts[role] = (counts[role] || 0) + 1; });
+    return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+};
+
+const getRepoBloomLevel = (concept, pathOrder, totalSteps) => {
+    const prereqCount = (concept?.prerequisites || []).length;
+    const hasCodeEvidence = (concept?.code_cluster_ids || []).length > 0;
+    const ratio = totalSteps > 1 ? (pathOrder - 1) / (totalSteps - 1) : 0;
+    if (ratio >= 0.75 && hasCodeEvidence) return 'Create';
+    if (ratio >= 0.6 || (hasCodeEvidence && prereqCount >= 2)) return 'Evaluate';
+    if (ratio >= 0.45 || hasCodeEvidence) return 'Analyze';
+    if (ratio >= 0.3 || prereqCount >= 1) return 'Apply';
+    if (prereqCount > 0) return 'Understand';
+    return 'Remember';
+};
 
 const getRepoEstimatedHours = (concept) => {
     const keywordCount = Array.isArray(concept?.keywords) ? concept.keywords.length : 0;
@@ -67,20 +93,25 @@ const getRepoEstimatedHours = (concept) => {
 
 const buildRepoMapData = (repoResult, skillLevel) => {
     const concepts = repoResult?.analysis?.concepts || [];
+    const codeGraph = repoResult?.code_graph || repoResult?.codeGraph || null;
+    const evidenceClusterMap = buildEvidenceClusterMap(codeGraph);
     const conceptById = new Map(concepts.map(concept => [concept.id, concept]));
     const path = repoResult?.analysis?.learning_path?.length
         ? repoResult.analysis.learning_path
         : concepts.map((concept, index) => ({ order: index + 1, concept_id: concept.id, title: concept.title }));
 
+    const totalSteps = path.length;
+
     const nodes = path
         .map((step, index) => {
             const concept = conceptById.get(step.concept_id);
             if (!concept) return null;
+            const pathOrder = step.order ?? index + 1;
             return {
                 id: `repo:${repoResult.repo?.fullName || 'repo'}:${concept.id}`,
                 label: concept.title,
                 status: index === 0 ? 'recommended_next' : 'not_started',
-                bloom_level: getRepoBloomLevel(index),
+                bloom_level: getRepoBloomLevel(concept, pathOrder, totalSteps),
                 difficulty: skillLevel || 'beginner',
                 estimated_hours: getRepoEstimatedHours(concept),
                 key_concepts: (concept.keywords || concept.tools || []).slice(0, 8),
@@ -89,6 +120,12 @@ const buildRepoMapData = (repoResult, skillLevel) => {
                 topicOverride: concept.title,
                 resourceQuery: concept.resource_query,
                 repoConcept: true,
+                repoCategory: concept.category || 'other',
+                confidence: concept.confidence || 'medium',
+                codeRole: resolveConceptCodeRole(concept, evidenceClusterMap),
+                pathOrder,
+                why_now: step.why_now || '',
+                codeClusterCount: (concept.code_cluster_ids || []).length,
                 repoFullName: repoResult.repo?.fullName,
                 why_relevant: concept.why_relevant,
                 practice_focus: concept.practice_focus,
@@ -106,6 +143,7 @@ const buildRepoMapData = (repoResult, skillLevel) => {
         total_estimated_hours: nodes.reduce((sum, node) => sum + (node.estimated_hours || 0), 0),
         nodes,
         edges: [],
+        isRepoPath: true,
         repo_summary: repoResult.analysis?.repo_summary,
         detected_stack: repoResult.analysis?.detected_stack || [],
     };

@@ -62,10 +62,43 @@ const CONFIDENCE_STYLES = {
     low: 'border-gray-600/40 bg-gray-800/40 text-gray-400',
 };
 
+const REPO_CATEGORY_LABELS = {
+    frontend: 'Interface & UX',
+    backend: 'Application logic',
+    data: 'Data & persistence',
+    ai: 'ML / AI patterns',
+    devops: 'Platform & delivery',
+    testing: 'Quality & verification',
+    architecture: 'System design',
+    security: 'Security',
+    domain: 'Domain concepts',
+    other: 'General concepts',
+};
+
+const REPO_ROLE_LABELS = {
+    api: 'API layer',
+    ui: 'UI components',
+    state: 'State management',
+    data_model: 'Data models',
+    service: 'Services',
+    config: 'Configuration',
+    test: 'Tests',
+    implementation: 'Core implementation',
+};
+
+const getRepoCategoryLabel = (category) => REPO_CATEGORY_LABELS[category] || REPO_CATEGORY_LABELS.other;
+
+const getRepoPhaseLabel = (pathOrder, totalNodes) => {
+    const ratio = totalNodes > 1 ? (pathOrder - 1) / (totalNodes - 1) : 0;
+    if (ratio < 0.34) return 'Context & prerequisites';
+    if (ratio < 0.67) return 'Core implementation patterns';
+    return 'Integration & extension';
+};
+
 /**
- * Group nodes into stages based on their order and status.
+ * Group topic-mode nodes into positional stages (legacy topic paths).
  */
-function groupNodesIntoStages(nodes) {
+function groupTopicNodesIntoStages(nodes) {
     if (!nodes || nodes.length === 0) return [];
 
     const stages = [];
@@ -74,7 +107,6 @@ function groupNodesIntoStages(nodes) {
     nodes.forEach((node, i) => {
         currentStage.nodes.push({ ...node, originalIndex: i });
 
-        // Create a new stage every 3-4 nodes
         if (currentStage.nodes.length >= 3 && i < nodes.length - 1) {
             stages.push(currentStage);
             const stageNum = stages.length;
@@ -90,12 +122,62 @@ function groupNodesIntoStages(nodes) {
     return stages;
 }
 
+function getNodePathOrder(node, nodes) {
+    if (node.pathOrder != null) return node.pathOrder;
+    const index = nodes.findIndex(item => item.id === node.id);
+    return index >= 0 ? index + 1 : 0;
+}
+
+/**
+ * Group repo nodes by architectural layer, ordered by learning-path position.
+ */
+function groupRepoNodesIntoStages(nodes) {
+    if (!nodes || nodes.length === 0) return [];
+
+    const sorted = [...nodes].sort((a, b) => getNodePathOrder(a, nodes) - getNodePathOrder(b, nodes));
+    const totalNodes = sorted.length;
+    const categoryGroups = new Map();
+
+    sorted.forEach((node) => {
+        const category = node.repoCategory || 'other';
+        if (!categoryGroups.has(category)) categoryGroups.set(category, []);
+        categoryGroups.get(category).push({
+            ...node,
+            originalIndex: nodes.findIndex(item => item.id === node.id),
+        });
+    });
+
+    return [...categoryGroups.entries()]
+        .map(([category, groupNodes]) => {
+            const orderedNodes = groupNodes.sort((a, b) => getNodePathOrder(a, nodes) - getNodePathOrder(b, nodes));
+            const minOrder = Math.min(...orderedNodes.map(n => getNodePathOrder(n, nodes)));
+            const avgOrder = orderedNodes.reduce((sum, n) => sum + getNodePathOrder(n, nodes), 0) / orderedNodes.length;
+            return {
+                label: getRepoCategoryLabel(category),
+                phaseLabel: getRepoPhaseLabel(Math.round(avgOrder), totalNodes),
+                category,
+                minOrder,
+                nodes: orderedNodes,
+            };
+        })
+        .sort((a, b) => a.minOrder - b.minOrder);
+}
+
+function groupNodesIntoStages(nodes, mapData) {
+    const isRepoPath = mapData?.isRepoPath || mapData?.repo_summary || nodes?.some(node => node.repoConcept);
+    if (isRepoPath) return groupRepoNodesIntoStages(nodes);
+    return groupTopicNodesIntoStages(nodes);
+}
+
 // ─── Node Card ──────────────────────────────────────────────────────────────
 
 const NodeCard = ({ node, isSelected, onSelect, index }) => {
     const config = STATUS_CONFIG[node.status] || STATUS_CONFIG.not_started;
     const StatusIcon = config.icon;
     const bloom = BLOOM_ICONS[node.bloom_level] || '📘';
+    const isRepoNode = node.repoConcept;
+    const roleLabel = node.codeRole ? REPO_ROLE_LABELS[node.codeRole] || node.codeRole : null;
+    const confidenceStyle = CONFIDENCE_STYLES[node.confidence] || CONFIDENCE_STYLES.medium;
 
     return (
         <motion.div
@@ -130,26 +212,51 @@ const NodeCard = ({ node, isSelected, onSelect, index }) => {
                     </h4>
                 </div>
 
-
+                {isRepoNode && (
+                    <div className="mt-1 flex flex-wrap items-center gap-1">
+                        {node.confidence && (
+                            <span className={`rounded-full border px-1.5 py-0.5 text-[8px] font-black uppercase tracking-widest ${confidenceStyle}`}>
+                                {node.confidence}
+                            </span>
+                        )}
+                        {roleLabel && (
+                            <span className="rounded-full border border-white/10 bg-white/5 px-1.5 py-0.5 text-[8px] font-bold text-gray-400">
+                                {roleLabel}
+                            </span>
+                        )}
+                        {node.codeClusterCount > 0 && (
+                            <span className="rounded-full border border-blue-500/20 bg-blue-500/10 px-1.5 py-0.5 text-[8px] font-bold text-blue-300/80">
+                                {node.codeClusterCount} code refs
+                            </span>
+                        )}
+                    </div>
+                )}
 
                 {/* Expanded details when selected */}
                 <AnimatePresence>
-                    {isSelected && node.key_concepts && (
+                    {isSelected && (node.key_concepts || node.why_now) && (
                         <motion.div
                             initial={{ height: 0, opacity: 0 }}
                             animate={{ height: 'auto', opacity: 1 }}
                             exit={{ height: 0, opacity: 0 }}
                             className="overflow-hidden"
                         >
-                            <div className="mt-2 pt-2 border-t border-gray-700/30">
-                                <p className="text-[10px] text-gray-400 mb-1 font-medium">Key Concepts:</p>
-                                <div className="flex flex-wrap gap-1">
-                                    {(node.key_concepts || []).slice(0, 5).map((concept, i) => (
-                                        <span key={i} className="text-[9px] px-1.5 py-0.5 rounded-md bg-gray-700/40 text-gray-400">
-                                            {concept}
-                                        </span>
-                                    ))}
-                                </div>
+                            <div className="mt-2 pt-2 border-t border-gray-700/30 space-y-2">
+                                {node.why_now && (
+                                    <p className="text-[10px] leading-relaxed text-gray-400">{node.why_now}</p>
+                                )}
+                                {node.key_concepts && (
+                                    <div>
+                                        <p className="text-[10px] text-gray-400 mb-1 font-medium">Key Concepts:</p>
+                                        <div className="flex flex-wrap gap-1">
+                                            {(node.key_concepts || []).slice(0, 5).map((concept, i) => (
+                                                <span key={i} className="text-[9px] px-1.5 py-0.5 rounded-md bg-gray-700/40 text-gray-400">
+                                                    {concept}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </motion.div>
                     )}
@@ -190,6 +297,9 @@ const StageSection = ({ stage, stageIndex, selectedNode, onNodeSelect, totalStag
                 </div>
                 <div className="flex-1">
                     <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wider">{stage.label}</h3>
+                    {stage.phaseLabel && (
+                        <p className="mt-0.5 text-[9px] font-bold uppercase tracking-widest text-gray-500">{stage.phaseLabel}</p>
+                    )}
                     <div className="flex items-center gap-2 mt-0.5">
                         <div className="flex-1 h-1 bg-gray-800 rounded-full overflow-hidden max-w-[120px]">
                             <motion.div
@@ -274,7 +384,7 @@ export const RepoOverview = ({ mapData }) => {
 // ─── Main Component ─────────────────────────────────────────────────────────
 
 const LearningPathMap = ({ mapData, selectedNode, onNodeSelect }) => {
-    const stages = useMemo(() => groupNodesIntoStages(mapData?.nodes), [mapData]);
+    const stages = useMemo(() => groupNodesIntoStages(mapData?.nodes, mapData), [mapData]);
 
     const totalNodes = mapData?.nodes?.length || 0;
     const completedNodes = mapData?.nodes?.filter(n => n.status === 'completed').length || 0;
