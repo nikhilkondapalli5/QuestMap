@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Compass, User, BookOpen, Target, Sparkles, ArrowRight, LogOut, History, Globe, GitBranch, Sun, Moon } from 'lucide-react';
+import { Compass, User, BookOpen, Target, Sparkles, ArrowRight, LogOut, Globe, GitBranch, Sun, Moon } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { auth } from '../firebase';
 import { signOut } from 'firebase/auth';
 import LoadingState from '../components/LoadingState';
 import TubesBackground from '../components/TubesBackground';
-import QuestLog from '../components/QuestLog';
 import DocumentUpload from '../components/DocumentUpload';
 import DomainPreferences from '../components/DomainPreferences';
 import { API_BASE } from '../config/api';
@@ -78,8 +77,6 @@ const Profile = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [currentUser, setCurrentUser] = useState(null);
     const [quests, setQuests] = useState([]);
-    const [loadingHistory, setLoadingHistory] = useState(false);
-    const [showHistory, setShowHistory] = useState(false);
     const [documents, setDocuments] = useState([]);
     const [searchHistory, setSearchHistory] = useState([]);
     const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
@@ -98,7 +95,6 @@ const Profile = () => {
     }, []);
 
     const fetchQuests = useCallback(async (uid) => {
-        setLoadingHistory(true);
         try {
             const res = await fetch(`${API_BASE}/user-quests/${uid}`);
             if (res.ok) {
@@ -108,7 +104,6 @@ const Profile = () => {
         } catch (err) {
             console.error("Failed to fetch quests:", err);
         }
-        setLoadingHistory(false);
     }, []);
 
     useEffect(() => {
@@ -135,33 +130,6 @@ const Profile = () => {
         });
         return unsubscribe;
     }, [fetchDocuments, fetchQuests]);
-
-    const handleResumeQuest = (quest) => {
-        const profileData = {
-            ...quest.profileData,
-            topic: quest.topic,
-            skill_level: quest.skillLevel,
-        };
-        sessionStorage.setItem('questmap_profile', JSON.stringify(profileData));
-        sessionStorage.setItem('questmap_cached_data', JSON.stringify({
-            mapData: quest.mapData,
-            recommendations: quest.recommendations,
-            profileData: quest.profileData
-        }));
-        navigate('/dashboard');
-    };
-
-    const handleDeleteQuest = async (id) => {
-        try {
-            const res = await fetch(`${API_BASE}/quest/${id}`, { method: 'DELETE' });
-            if (res.ok) {
-                const uid = currentUser?.uid || sessionStorage.getItem('questmap_uid') || 'anonymous';
-                fetchQuests(uid);
-            }
-        } catch (err) {
-            console.error("Delete failed:", err);
-        }
-    };
 
     const handleLogout = async () => {
         try {
@@ -415,20 +383,10 @@ const Profile = () => {
                             </div>
 
                             <div className="space-y-4 group">
-                                <div className="flex items-center justify-between">
-                                    <label className={cn("flex items-center gap-3 text-[11px] font-black uppercase tracking-[0.3em] font-outfit", isLightTheme ? "text-blue-600" : "text-blue-400")}>
-                                        {isRepoMode ? <GitBranch className="w-4 h-4" /> : <BookOpen className="w-4 h-4" />}
-                                        {isRepoMode ? 'GitHub Repository' : 'Knowledge Domain'}
-                                    </label>
-                                    {isRepoMode && !showHistory && (
-                                        <button
-                                            onClick={() => setShowHistory(true)}
-                                            className={cn("text-[9px] font-black uppercase tracking-widest transition-colors flex items-center gap-2", isLightTheme ? "text-gray-500 hover:text-blue-600" : "text-white/30 hover:text-blue-400")}
-                                        >
-                                            <History className="w-3.5 h-3.5" /> View Archives
-                                        </button>
-                                    )}
-                                </div>
+                                <label className={cn("flex items-center gap-3 text-[11px] font-black uppercase tracking-[0.3em] font-outfit", isLightTheme ? "text-blue-600" : "text-blue-400")}>
+                                    {isRepoMode ? <GitBranch className="w-4 h-4" /> : <BookOpen className="w-4 h-4" />}
+                                    {isRepoMode ? 'GitHub Repository' : 'Knowledge Domain'}
+                                </label>
                                 <div className="relative">
                                     <input
                                         type={isRepoMode ? 'url' : 'text'}
@@ -508,74 +466,41 @@ const Profile = () => {
                                 </div>
                             </div>
 
-                            {!showHistory ? (
-                                !isRepoMode && (
-                                    <div className="space-y-4">
-                                        <div className="flex items-center justify-between">
-                                            <label className={cn("flex items-center gap-3 text-[11px] font-black uppercase tracking-[0.3em] font-outfit", isLightTheme ? "text-purple-600" : "text-purple-400")}>
-                                                <Target className="w-4 h-4" />
-                                                Experience vector
-                                            </label>
-                                            <button
-                                                onClick={() => setShowHistory(true)}
-                                                className={cn("text-[9px] font-black uppercase tracking-widest transition-colors flex items-center gap-2", isLightTheme ? "text-gray-500 hover:text-blue-600" : "text-white/30 hover:text-blue-400")}
-                                            >
-                                                <History className="w-3.5 h-3.5" /> View Archives
-                                            </button>
-                                        </div>
-                                        <div className="grid grid-cols-3 gap-4">
-                                            {SKILL_LEVELS.map((level) => (
-                                                <button
-                                                    key={level.value}
-                                                    type="button"
-                                                    onClick={() => setSkillLevel(level.value)}
-                                                    className={cn(
-                                                        "relative rounded-[2rem] p-6 border text-center transition-all duration-500 group overflow-hidden",
-                                                        skillLevel === level.value
-                                                            ? (isLightTheme
-                                                                ? 'border-blue-500 bg-blue-50/50 shadow-[0_0_40px_rgba(59,130,246,0.15)]'
-                                                                : 'border-blue-500/50 bg-blue-500/10 shadow-[0_0_40px_rgba(59,130,246,0.2)]')
-                                                            : (isLightTheme
-                                                                ? 'border-gray-200 bg-gray-50 hover:border-gray-300'
-                                                                : 'border-white/5 bg-white/5 hover:border-white/20')
-                                                    )}
-                                                >
-                                                    <div className="relative z-10">
-                                                        <span className="text-3xl mb-3 block group-hover:scale-125 transition-transform duration-500">{level.icon}</span>
-                                                        <span className={cn("text-[11px] font-black block uppercase tracking-tighter font-outfit", isLightTheme ? "text-gray-950" : "text-white")}>{level.label}</span>
-                                                    </div>
-                                                    {skillLevel === level.value && (
-                                                        <motion.div
-                                                            layoutId="skill-blob"
-                                                            className="absolute inset-0 bg-gradient-to-t from-blue-600/10 to-transparent pointer-events-none"
-                                                        />
-                                                    )}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )
-                            ) : (
+                            {!isRepoMode && (
                                 <div className="space-y-4">
-                                    <div className="flex items-center justify-between">
-                                        <label className={cn("flex items-center gap-3 text-[11px] font-black uppercase tracking-[0.3em] font-outfit", isLightTheme ? "text-blue-600" : "text-blue-400")}>
-                                            <History className="w-4 h-4" />
-                                            Neural Archives
-                                        </label>
-                                        <button
-                                            onClick={() => setShowHistory(false)}
-                                            className={cn("text-[9px] font-black uppercase tracking-widest transition-colors", isLightTheme ? "text-gray-500 hover:text-blue-600" : "text-white/30 hover:text-blue-400")}
-                                        >
-                                            Back to Forge
-                                        </button>
-                                    </div>
-                                    <div className="max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                                        <QuestLog
-                                            quests={quests}
-                                            loading={loadingHistory}
-                                            onResume={handleResumeQuest}
-                                            onDelete={handleDeleteQuest}
-                                        />
+                                    <label className={cn("flex items-center gap-3 text-[11px] font-black uppercase tracking-[0.3em] font-outfit", isLightTheme ? "text-purple-600" : "text-purple-400")}>
+                                        <Target className="w-4 h-4" />
+                                        Experience vector
+                                    </label>
+                                    <div className="grid grid-cols-3 gap-4">
+                                        {SKILL_LEVELS.map((level) => (
+                                            <button
+                                                key={level.value}
+                                                type="button"
+                                                onClick={() => setSkillLevel(level.value)}
+                                                className={cn(
+                                                    "relative rounded-[2rem] p-6 border text-center transition-all duration-500 group overflow-hidden",
+                                                    skillLevel === level.value
+                                                        ? (isLightTheme
+                                                            ? 'border-blue-500 bg-blue-50/50 shadow-[0_0_40px_rgba(59,130,246,0.15)]'
+                                                            : 'border-blue-500/50 bg-blue-500/10 shadow-[0_0_40px_rgba(59,130,246,0.2)]')
+                                                        : (isLightTheme
+                                                            ? 'border-gray-200 bg-gray-50 hover:border-gray-300'
+                                                            : 'border-white/5 bg-white/5 hover:border-white/20')
+                                                )}
+                                            >
+                                                <div className="relative z-10">
+                                                    <span className="text-3xl mb-3 block group-hover:scale-125 transition-transform duration-500">{level.icon}</span>
+                                                    <span className={cn("text-[11px] font-black block uppercase tracking-tighter font-outfit", isLightTheme ? "text-gray-950" : "text-white")}>{level.label}</span>
+                                                </div>
+                                                {skillLevel === level.value && (
+                                                    <motion.div
+                                                        layoutId="skill-blob"
+                                                        className="absolute inset-0 bg-gradient-to-t from-blue-600/10 to-transparent pointer-events-none"
+                                                    />
+                                                )}
+                                            </button>
+                                        ))}
                                     </div>
                                 </div>
                             )}
