@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle, Circle, Play, Lock, Clock, ChevronDown, ChevronRight, Sparkles, Target, AlertTriangle } from 'lucide-react';
 
@@ -342,6 +342,7 @@ const StageSection = ({ stage, stageIndex, selectedNode, onNodeSelect, totalStag
 };
 
 export const RepoOverview = ({ mapData }) => {
+    const [isOpen, setIsOpen] = useState(false);
     const summary = mapData?.repo_summary;
     if (!summary?.plain_english && !summary?.project_type) return null;
 
@@ -349,34 +350,50 @@ export const RepoOverview = ({ mapData }) => {
     const confidence = summary?.confidence || 'medium';
 
     return (
-        <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4">
-            <div className="flex items-start justify-between gap-3">
+        <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4 transition-all duration-300">
+            <button
+                type="button"
+                onClick={() => setIsOpen(!isOpen)}
+                className="flex w-full items-start justify-between gap-3 text-left outline-none"
+            >
                 <div className="min-w-0">
                     <p className="text-[10px] font-black uppercase tracking-widest text-blue-300">Repository Overview</p>
-                    <h3 className="mt-1 truncate text-sm font-bold text-white">
+                    <h3 className="mt-1 truncate text-sm font-bold text-white flex items-center gap-1.5">
                         {summary.project_type || mapData?.topic || 'GitHub repository'}
+                        <ChevronDown className={`w-3.5 h-3.5 text-blue-300 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
                     </h3>
                 </div>
                 <span className={`flex-shrink-0 rounded-full border px-2 py-1 text-[10px] font-black uppercase ${CONFIDENCE_STYLES[confidence] || CONFIDENCE_STYLES.medium}`}>
                     {confidence}
                 </span>
-            </div>
+            </button>
 
-            {summary.plain_english && (
-                <p className="mt-2 text-xs leading-relaxed text-gray-400">
-                    {summary.plain_english}
-                </p>
-            )}
+            <AnimatePresence initial={false}>
+                {isOpen && (
+                    <motion.div
+                        initial={{ height: 0, opacity: 0, marginTop: 0 }}
+                        animate={{ height: 'auto', opacity: 1, marginTop: 8 }}
+                        exit={{ height: 0, opacity: 0, marginTop: 0 }}
+                        className="overflow-hidden"
+                    >
+                        {summary.plain_english && (
+                            <p className="text-xs leading-relaxed text-gray-400">
+                                {summary.plain_english}
+                            </p>
+                        )}
 
-            {stack.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                    {stack.map(item => (
-                        <span key={item} className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-bold text-gray-300">
-                            {item}
-                        </span>
-                    ))}
-                </div>
-            )}
+                        {stack.length > 0 && (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                                {stack.map(item => (
+                                    <span key={item} className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-bold text-gray-300">
+                                        {item}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

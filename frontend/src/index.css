@@ -360,7 +360,7 @@ body {
     position: relative;
     height: 320px;
     min-height: 150px;
-    resize: vertical;
+    resize: none;
     overflow: auto !important;
     display: block !important;
 }
@@ -383,14 +383,6 @@ body {
 .code-viewer-pre::-webkit-scrollbar-thumb:hover {
     background: rgba(148, 163, 184, 0.5) !important;
 }
-.code-viewer-pre::-webkit-resizer {
-    background: rgba(16, 185, 129, 0.8) !important;
-    cursor: nwse-resize;
-}
-.quest-theme-light .code-viewer-pre::-webkit-resizer {
-    background: rgba(5, 150, 105, 0.8) !important;
-}
-
 /* Code Syntax Highlighting (Dark Theme by default) */
 .code-hl-keyword, .token.keyword {
     color: #c586c0; /* purple */

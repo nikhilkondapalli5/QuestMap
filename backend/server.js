@@ -2543,11 +2543,22 @@ app.post('/api/repo/code/explain', async (req, res) => {
             surroundingContext, 
             topic, 
             skillLevel,
-            history = [] 
+            history = [],
+            allSnippets = []
         } = req.body;
 
         if (!selectedSnippet) {
             return res.status(400).json({ error: 'selectedSnippet is required' });
+        }
+
+        let snippetsContext = '';
+        if (Array.isArray(allSnippets) && allSnippets.length > 0) {
+            snippetsContext = `Here are the context of all matched code snippets from this file (${filePath}):\n\n` + 
+                allSnippets.map((s, idx) => {
+                    return `--- Snippet ${idx + 1} (Lines ${s.startLine}-${s.endLine}) ---\n${s.snippet}\n` +
+                        (s.summary ? `Summary: ${s.summary}\n` : '') +
+                        (s.reason ? `Reason: ${s.reason}\n` : '');
+                }).join('\n') + '\n\n';
         }
 
         const systemInstruction = `You are an expert developer and a programming teacher. Your goal is to explain code selections clearly and help the user with follow-ups.
@@ -2557,7 +2568,7 @@ Frame explanations for a learner at a ${skillLevel || 'beginner'} level, keeping
 
         let contents = [];
         if (!history || history.length === 0) {
-            const prompt = `Please explain this selected code snippet:
+            const prompt = `${snippetsContext}Please explain this selected code snippet:
 \`\`\`${language || ''}
 ${selectedSnippet}
 \`\`\`
@@ -2572,10 +2583,16 @@ ${surroundingContext || 'No surrounding context available'}
 Briefly explain the key components and logic of this code snippet, and how it fits into the topic of "${topic || 'software development'}". Do not write a long essay or explain basic language keywords; keep the breakdown focused, structured, and direct.`;
             contents = [{ role: 'user', parts: [{ text: prompt }] }];
         } else {
-            contents = history.map(msg => ({
-                role: msg.role === 'model' ? 'model' : 'user',
-                parts: [{ text: msg.parts?.[0]?.text || msg.text || '' }]
-            }));
+            contents = history.map((msg, idx) => {
+                let text = msg.parts?.[0]?.text || msg.text || '';
+                if (idx === 0 && snippetsContext) {
+                    text = snippetsContext + text;
+                }
+                return {
+                    role: msg.role === 'model' ? 'model' : 'user',
+                    parts: [{ text }]
+                };
+            });
         }
 
         const responseText = await callGeminiText(contents, systemInstruction);

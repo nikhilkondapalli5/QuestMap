@@ -660,7 +660,7 @@ const highlightCodeWithPrism = (code, language = 'javascript') => {
     }
 };
 
-const CodeBlockWithHighlights = ({ code, startLine = 1, highlightStart, highlightEnd, highlightRanges = [], focusStartLine, language }) => {
+const CodeBlockWithHighlights = ({ code, startLine = 1, highlightStart, highlightEnd, highlightRanges = [], focusStartLine, language, height, scrollTrigger, visibleReferences = [], onActiveSnippetChange }) => {
     const lines = React.useMemo(() => {
         return highlightCodeWithPrism(code, language);
     }, [code, language]);
@@ -698,12 +698,51 @@ const CodeBlockWithHighlights = ({ code, startLine = 1, highlightStart, highligh
                 }
             }
         }
-    }, [lines, firstLine, focusStartLine]);
+    }, [scrollTrigger]);
+
+    const handleScroll = React.useCallback((e) => {
+        const pre = e.currentTarget;
+        if (!pre || !onActiveSnippetChange || !visibleReferences || visibleReferences.length <= 1) return;
+
+        const viewportMid = pre.scrollTop + pre.clientHeight / 2;
+        const codeElement = pre.querySelector('code');
+        if (!codeElement) return;
+
+        let bestIndex = 0;
+        let minDistance = Infinity;
+
+        visibleReferences.forEach((ref, idx) => {
+            const snippetStartLine = ref.anchorStartLine || ref.startLine;
+            const snippetEndLine = ref.anchorEndLine || ref.endLine;
+
+            const startIndex = snippetStartLine - firstLine;
+            const endIndex = snippetEndLine - firstLine;
+
+            const startEl = codeElement.children[startIndex];
+            const endEl = codeElement.children[endIndex] || startEl;
+
+            if (startEl) {
+                const snippetTop = startEl.offsetTop;
+                const snippetBottom = endEl ? (endEl.offsetTop + endEl.offsetHeight) : (startEl.offsetTop + startEl.offsetHeight);
+                const snippetMid = (snippetTop + snippetBottom) / 2;
+
+                const distance = Math.abs(snippetMid - viewportMid);
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    bestIndex = idx;
+                }
+            }
+        });
+
+        onActiveSnippetChange(bestIndex);
+    }, [firstLine, visibleReferences, onActiveSnippetChange]);
 
     return (
         <pre 
             ref={containerRef}
+            onScroll={handleScroll}
             className="code-viewer-pre overflow-auto p-0 text-[11px] leading-relaxed text-gray-300 custom-scrollbar"
+            style={height ? { height: `${height}px` } : undefined}
         >
             <code className="block py-2">
                 {lines.map((line, index) => {
@@ -712,6 +751,7 @@ const CodeBlockWithHighlights = ({ code, startLine = 1, highlightStart, highligh
                     return (
                         <span
                             key={`${lineNumber}-${index}`}
+                            data-line={lineNumber}
                             className={`grid grid-cols-[3rem_minmax(0,1fr)] gap-3 px-3 ${
                                 highlighted ? 'bg-emerald-500/15 text-emerald-100' : ''
                             }`}
@@ -823,7 +863,7 @@ const MarkdownText = ({ text }) => {
     );
 };
 
-const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, onToggleMaximize }) => {
+export const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, isMaximized, onToggleMaximize }) => {
     if (!selectedNode?.repoConcept) return null;
     const references = selectedNode?.code_references || [];
     const codeFiles = selectedNode?.code_files || [];
@@ -836,6 +876,67 @@ const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, onToggleMaximiz
     const [fullFiles, setFullFiles] = React.useState({});
     const [loadingFile, setLoadingFile] = React.useState(false);
     const [fileError, setFileError] = React.useState('');
+    const [scrollTrigger, setScrollTrigger] = React.useState(0);
+    const [searchResultReferences, setSearchResultReferences] = React.useState(null);
+
+    const activeReferences = searchResultReferences !== null ? searchResultReferences : references;
+
+    const matchedFileScores = React.useMemo(() => {
+        const scores = new Map();
+        for (const ref of activeReferences) {
+            if (!ref.filePath) continue;
+            const score = Number(ref.score || ref.relevance || 0);
+            const currentMax = scores.get(ref.filePath) || 0;
+            if (score > currentMax) {
+                scores.set(ref.filePath, score);
+            }
+        }
+        return scores;
+    }, [activeReferences]);
+
+    const scoreRange = React.useMemo(() => {
+        const scores = activeReferences.map(ref => Number(ref.score || ref.relevance || 0)).filter(s => s > 0);
+        if (scores.length === 0) {
+            return { min: 0.65, max: 1.0 };
+        }
+        return {
+            min: Math.min(...scores),
+            max: Math.max(...scores),
+        };
+    }, [activeReferences]);
+
+    const tree = React.useMemo(() => {
+        const rawTree = buildCodeTree(codeFiles, activeReferences);
+        return addMatchedFlagToTree(rawTree, matchedFileScores);
+    }, [codeFiles, activeReferences, matchedFileScores]);
+
+    const visibleReferences = React.useMemo(() => {
+        const filtered = activeFilePath
+            ? activeReferences.filter(reference => reference.filePath === activeFilePath)
+            : activeReferences;
+        return [...filtered].sort((a, b) => (
+            String(a.filePath || '').localeCompare(String(b.filePath || '')) ||
+            Number(a.startLine || 0) - Number(b.startLine || 0) ||
+            Number(a.endLine || 0) - Number(b.endLine || 0)
+        ));
+    }, [activeFilePath, activeReferences]);
+
+    const allSnippets = React.useMemo(() => {
+        return visibleReferences.map(ref => ({
+            startLine: ref.anchorStartLine || ref.startLine,
+            endLine: ref.anchorEndLine || ref.endLine,
+            snippet: ref.anchorSnippet || ref.snippet,
+            summary: ref.summary,
+            reason: ref.reason
+        }));
+    }, [visibleReferences]);
+
+    const handleActiveSnippetChange = React.useCallback((index) => {
+        setActiveIndex(prev => {
+            if (prev === index) return prev;
+            return index;
+        });
+    }, []);
 
     // Code snippet explanation and follow-up states
     const [selectionInfo, setSelectionInfo] = React.useState(null);
@@ -844,7 +945,6 @@ const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, onToggleMaximiz
     const [followupLoading, setFollowupLoading] = React.useState(false);
 
     // Keyword interactive search states
-    const [searchResultReferences, setSearchResultReferences] = React.useState(null);
     const [selectedKeyword, setSelectedKeyword] = React.useState(null);
     const [loadingKeyword, setLoadingKeyword] = React.useState(null);
     const [keywordError, setKeywordError] = React.useState('');
@@ -900,6 +1000,16 @@ const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, onToggleMaximiz
         return Number.isFinite(saved) && saved >= 240 ? saved : 384;
     });
     const [isResizingExplain, setIsResizingExplain] = React.useState(false);
+    const [codeHeight, setCodeHeight] = React.useState(() => {
+        const saved = Number(sessionStorage.getItem('questmap_code_viewer_height'));
+        return Number.isFinite(saved) && saved >= 220 ? saved : 520;
+    });
+    const [explainHeight, setExplainHeight] = React.useState(() => {
+        const saved = Number(sessionStorage.getItem('questmap_explain_height'));
+        return Number.isFinite(saved) && saved >= 260 ? saved : 620;
+    });
+    const [verticalResizeTarget, setVerticalResizeTarget] = React.useState(null);
+    const verticalResizeRef = React.useRef(null);
 
     const handleExplainResizeStart = React.useCallback((event) => {
         event.preventDefault();
@@ -939,47 +1049,61 @@ const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, onToggleMaximiz
         sessionStorage.setItem('questmap_explain_width', String(explainWidth));
     }, [explainWidth]);
 
-    const activeReferences = searchResultReferences !== null ? searchResultReferences : references;
-
-    const matchedFileScores = React.useMemo(() => {
-        const scores = new Map();
-        for (const ref of activeReferences) {
-            if (!ref.filePath) continue;
-            const score = Number(ref.score || ref.relevance || 0);
-            const currentMax = scores.get(ref.filePath) || 0;
-            if (score > currentMax) {
-                scores.set(ref.filePath, score);
-            }
-        }
-        return scores;
-    }, [activeReferences]);
-
-    const scoreRange = React.useMemo(() => {
-        const scores = activeReferences.map(ref => Number(ref.score || ref.relevance || 0)).filter(s => s > 0);
-        if (scores.length === 0) {
-            return { min: 0.65, max: 1.0 };
-        }
-        return {
-            min: Math.min(...scores),
-            max: Math.max(...scores),
+    const handleVerticalResizeStart = React.useCallback((event, target) => {
+        if (!isMaximized) return;
+        event.preventDefault();
+        const startHeight = target === 'code' ? codeHeight : explainHeight;
+        verticalResizeRef.current = {
+            target,
+            startY: event.clientY,
+            startHeight,
         };
-    }, [activeReferences]);
+        setVerticalResizeTarget(target);
+    }, [codeHeight, explainHeight, isMaximized]);
 
-    const tree = React.useMemo(() => {
-        const rawTree = buildCodeTree(codeFiles, activeReferences);
-        return addMatchedFlagToTree(rawTree, matchedFileScores);
-    }, [codeFiles, activeReferences, matchedFileScores]);
+    React.useEffect(() => {
+        if (!verticalResizeTarget) return undefined;
 
-    const visibleReferences = React.useMemo(() => {
-        const filtered = activeFilePath
-            ? activeReferences.filter(reference => reference.filePath === activeFilePath)
-            : activeReferences;
-        return [...filtered].sort((a, b) => (
-            String(a.filePath || '').localeCompare(String(b.filePath || '')) ||
-            Number(a.startLine || 0) - Number(b.startLine || 0) ||
-            Number(a.endLine || 0) - Number(b.endLine || 0)
-        ));
-    }, [activeFilePath, activeReferences]);
+        const handlePointerMove = (event) => {
+            const current = verticalResizeRef.current;
+            if (!current) return;
+            const delta = event.clientY - current.startY;
+            const nextHeight = Math.max(
+                current.target === 'code' ? 260 : 320,
+                Math.min(current.target === 'code' ? 900 : 920, current.startHeight + delta)
+            );
+            if (current.target === 'code') {
+                setCodeHeight(nextHeight);
+            } else {
+                setExplainHeight(nextHeight);
+            }
+        };
+
+        const handlePointerUp = () => {
+            setVerticalResizeTarget(null);
+            verticalResizeRef.current = null;
+        };
+
+        document.body.style.cursor = 'row-resize';
+        document.body.style.userSelect = 'none';
+        window.addEventListener('pointermove', handlePointerMove);
+        window.addEventListener('pointerup', handlePointerUp);
+
+        return () => {
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            window.removeEventListener('pointermove', handlePointerMove);
+            window.removeEventListener('pointerup', handlePointerUp);
+        };
+    }, [verticalResizeTarget]);
+
+    React.useEffect(() => {
+        sessionStorage.setItem('questmap_code_viewer_height', String(codeHeight));
+    }, [codeHeight]);
+
+    React.useEffect(() => {
+        sessionStorage.setItem('questmap_explain_height', String(explainHeight));
+    }, [explainHeight]);
 
     React.useEffect(() => {
         setExpanded(Boolean(references.length));
@@ -992,6 +1116,7 @@ const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, onToggleMaximiz
         setSelectedKeyword(null);
         setLoadingKeyword(null);
         setKeywordError('');
+        setScrollTrigger(t => t + 1);
         
         // Reset selection and chat states
         setSelectionInfo(null);
@@ -1053,6 +1178,7 @@ const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, onToggleMaximiz
             if (refs.length > 0) {
                 setActiveFilePath(refs[0].filePath);
                 setActiveIndex(0);
+                setScrollTrigger(t => t + 1);
             }
         } catch (err) {
             setKeywordError(err.message);
@@ -1067,6 +1193,7 @@ const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, onToggleMaximiz
         setKeywordError('');
         setActiveFilePath(references[0]?.filePath || codeFiles[0]?.filePath || '');
         setActiveIndex(0);
+        setScrollTrigger(t => t + 1);
     };
 
     const ingestion = selectedNode?.code_ingestion;
@@ -1173,6 +1300,7 @@ const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, onToggleMaximiz
                     topic,
                     skillLevel,
                     history: [],
+                    allSnippets,
                 }),
             });
 
@@ -1285,6 +1413,7 @@ const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, onToggleMaximiz
                         role: msg.role === 'model' ? 'model' : 'user',
                         parts: [{ text: msg.text }]
                     })),
+                    allSnippets,
                 }),
             });
 
@@ -1315,9 +1444,12 @@ const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, onToggleMaximiz
     }, [followupText, explainData, followupLoading, getSkillLevel]);
     React.useEffect(() => {
         setSelectionInfo(null);
+    }, [activeFilePath, activeIndex, showFullFile]);
+
+    React.useEffect(() => {
         setExplainData(null);
         setFollowupText('');
-    }, [activeFilePath, activeIndex, showFullFile]);
+    }, [activeFilePath]);
 
     React.useEffect(() => {
         const handleScroll = () => {
@@ -1334,7 +1466,7 @@ const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, onToggleMaximiz
             {/* Tree and code flex wrapper */}
             <div 
                 ref={containerRef} 
-                className="flex flex-col lg:flex-row gap-3"
+                className="flex flex-col lg:flex-row items-start gap-3"
                 style={{ 
                     '--tree-sidebar-width': `${treeWidth}px`,
                     '--explain-panel-width': `${explainWidth}px`
@@ -1354,6 +1486,7 @@ const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, onToggleMaximiz
                                     onSelectFile={(path) => {
                                         setActiveFilePath(path);
                                         setActiveIndex(0);
+                                        setScrollTrigger(t => t + 1);
                                         setExpanded(true);
                                         setShowFullFile(false);
                                         setFileError('');
@@ -1417,6 +1550,19 @@ const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, onToggleMaximiz
                                         className="p-1 rounded hover:bg-white/10 text-gray-400 hover:text-white transition-all flex items-center justify-center"
                                     >
                                         <Columns className="w-3.5 h-3.5" />
+                                    </button>
+                                )}
+                                {onToggleMaximize && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onToggleMaximize();
+                                        }}
+                                        title={isMaximized ? "Minimize panel" : "Maximize panel"}
+                                        className="p-1 rounded hover:bg-white/10 text-gray-400 hover:text-white transition-all flex items-center justify-center"
+                                    >
+                                        {isMaximized ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
                                     </button>
                                 )}
                                 {expanded ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
@@ -1515,7 +1661,10 @@ const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, onToggleMaximiz
                                                     <button
                                                         type="button"
                                                         disabled={activeIndex === 0}
-                                                        onClick={() => setActiveIndex(prev => Math.max(0, prev - 1))}
+                                                        onClick={() => {
+                                                            setActiveIndex(prev => Math.max(0, prev - 1));
+                                                            setScrollTrigger(t => t + 1);
+                                                        }}
                                                         className="px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-30 disabled:hover:bg-gray-700 text-[9px] font-black uppercase tracking-widest text-white transition-all"
                                                     >
                                                         Prev
@@ -1526,7 +1675,10 @@ const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, onToggleMaximiz
                                                     <button
                                                         type="button"
                                                         disabled={activeIndex === visibleReferences.length - 1}
-                                                        onClick={() => setActiveIndex(prev => Math.min(visibleReferences.length - 1, prev + 1))}
+                                                        onClick={() => {
+                                                            setActiveIndex(prev => Math.min(visibleReferences.length - 1, prev + 1));
+                                                            setScrollTrigger(t => t + 1);
+                                                        }}
                                                         className="px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-30 disabled:hover:bg-gray-700 text-[9px] font-black uppercase tracking-widest text-white transition-all"
                                                     >
                                                         Next
@@ -1569,7 +1721,7 @@ const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, onToggleMaximiz
                                                                 onClick={handleExplainSnippet}
                                                                 className="flex items-center gap-1 rounded-md border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-emerald-300 transition hover:border-emerald-400/40 hover:bg-emerald-500/15"
                                                                 title="Explain this snippet"
-                                                            >
+                                                             >
                                                                 <Sparkles className="h-3 w-3" />
                                                                 Explain snippet
                                                             </button>
@@ -1595,7 +1747,26 @@ const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, onToggleMaximiz
                                                     highlightRanges={fullFileHighlightRanges}
                                                     focusStartLine={anchorStartLine}
                                                     language={activeReference?.language || activeCodeFile?.language}
+                                                    height={isMaximized ? codeHeight : undefined}
+                                                    scrollTrigger={scrollTrigger}
+                                                    visibleReferences={visibleReferences}
+                                                    onActiveSnippetChange={handleActiveSnippetChange}
                                                 />
+                                            )}
+                                            {isMaximized && (
+                                                <div
+                                                    role="separator"
+                                                    aria-orientation="horizontal"
+                                                    onPointerDown={(event) => handleVerticalResizeStart(event, 'code')}
+                                                    className="flex h-3 cursor-row-resize items-center justify-center border-t border-gray-800/70 bg-gray-950/70 group"
+                                                    title="Drag to resize code window"
+                                                >
+                                                    <div className={`h-0.5 w-12 rounded-full transition-colors ${
+                                                        verticalResizeTarget === 'code'
+                                                            ? 'bg-blue-400'
+                                                            : 'bg-gray-700 group-hover:bg-blue-400'
+                                                    }`} />
+                                                </div>
                                             )}
                                         </div>
                                     </>
@@ -1640,12 +1811,15 @@ const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, onToggleMaximiz
                             }`} />
                         </div>
 
-                        <div className={`ai-explain-column flex-shrink-0 lg:max-h-[34rem] overflow-auto rounded-2xl border p-4 space-y-4 custom-scrollbar transition-all duration-300 flex flex-col justify-between ${
+                        <div
+                            className={`ai-explain-column flex-shrink-0 ${isMaximized ? 'overflow-hidden' : 'lg:max-h-[34rem] overflow-auto'} rounded-2xl border p-4 space-y-4 custom-scrollbar transition-all duration-300 flex flex-col justify-between ${
                             isLightTheme 
                                 ? 'bg-white/90 border-gray-200/80 shadow-md text-gray-800' 
                                 : 'bg-gray-950/40 border-gray-700/40 text-gray-200 shadow-2xl shadow-black/40'
-                        }`}>
-                        <div className="space-y-4 flex-1">
+                            }`}
+                            style={isMaximized ? { height: `${explainHeight}px` } : undefined}
+                        >
+                        <div className="space-y-4 flex-1 min-h-0 flex flex-col">
                             <div className="flex items-center justify-between border-b border-gray-800/20 pb-2">
                                 <div className="flex items-center gap-2">
                                     <Sparkles className="w-4 h-4 text-emerald-500 animate-pulse" />
@@ -1683,7 +1857,7 @@ const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, onToggleMaximiz
                             </div>
 
                             {/* Conversation history */}
-                            <div className="space-y-3 max-h-[16rem] overflow-y-auto pr-1 custom-scrollbar">
+                            <div className="space-y-3 flex-1 min-h-[10rem] overflow-y-auto pr-1 custom-scrollbar">
                                 {explainData.history.map((msg, idx) => {
                                     const isUser = msg.role === 'user';
                                     if (idx === 0 && isUser) return null;
@@ -1746,6 +1920,22 @@ const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, onToggleMaximiz
                             </div>
                         </div>
 
+                        {isMaximized && (
+                            <div
+                                role="separator"
+                                aria-orientation="horizontal"
+                                onPointerDown={(event) => handleVerticalResizeStart(event, 'explain')}
+                                className="flex h-3 cursor-row-resize items-center justify-center border-t border-gray-800/40 pt-2 group"
+                                title="Drag to resize explain window"
+                            >
+                                <div className={`h-0.5 w-12 rounded-full transition-colors ${
+                                    verticalResizeTarget === 'explain'
+                                        ? 'bg-blue-400'
+                                        : 'bg-gray-700 group-hover:bg-blue-400'
+                                }`} />
+                            </div>
+                        )}
+
                         {/* Followup chat form */}
                         <form onSubmit={handleSendFollowup} className="flex gap-2 pt-2 border-t border-gray-800/10 mt-4">
                             <input
@@ -1784,7 +1974,6 @@ const ResourcePanel = ({ resourceData, loading, selectedNode, userId, isLightThe
     const isRepo = selectedNode?.repoConcept;
     const tabs = isRepo
         ? [
-            { id: 'code', label: 'Code', icon: Code },
             { id: 'articles', label: 'Articles', icon: BookOpen },
             { id: 'youtube', label: 'YouTube', icon: Youtube },
           ]
@@ -1795,11 +1984,11 @@ const ResourcePanel = ({ resourceData, loading, selectedNode, userId, isLightThe
             { id: 'code', label: 'Code', icon: Code },
           ];
 
-    const [activeResourceTab, setActiveResourceTab] = React.useState(isRepo ? 'code' : 'youtube');
+    const [activeResourceTab, setActiveResourceTab] = React.useState(isRepo ? 'articles' : 'youtube');
 
     React.useEffect(() => {
         if (selectedNode) {
-            setActiveResourceTab(selectedNode.repoConcept ? 'code' : 'youtube');
+            setActiveResourceTab(selectedNode.repoConcept ? 'articles' : 'youtube');
         }
     }, [selectedNode?.id, selectedNode?.repoConcept]);
 
@@ -1977,7 +2166,7 @@ const ResourcePanel = ({ resourceData, loading, selectedNode, userId, isLightThe
 
                 {activeResourceTab === 'code' && (
                     selectedNode?.repoConcept ? (
-                        <CodeEvidencePanel key={selectedNode.id || selectedNode.label} selectedNode={selectedNode} userId={userId} isLightTheme={isLightTheme} onToggleMaximize={onToggleMaximize} />
+                        <CodeEvidencePanel key={selectedNode.id || selectedNode.label} selectedNode={selectedNode} userId={userId} isLightTheme={isLightTheme} isMaximized={isMaximized} onToggleMaximize={onToggleMaximize} />
                     ) : (
                         <ResourceEmptyState icon={Code} label="Code evidence is available for GitHub repo learning nodes" />
                     )

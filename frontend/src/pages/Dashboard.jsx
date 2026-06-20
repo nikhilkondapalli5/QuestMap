@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Compass, Lightbulb, BookOpen, Youtube, LogOut, Clock, Brain, Sparkles, RefreshCw, Moon, Sun, GitBranch } from 'lucide-react';
+import { Compass, Lightbulb, BookOpen, Youtube, LogOut, Clock, Brain, Sparkles, RefreshCw, Moon, Sun, GitBranch, Code } from 'lucide-react';
 import RecommendationList from '../components/RecommendationCard';
 import PracticePanel from '../components/PracticePanel';
-import ResourcePanel from '../components/ResourcePanel';
+import ResourcePanel, { CodeEvidencePanel } from '../components/ResourcePanel';
 import RepoLearningPanel from '../components/RepoLearningPanel';
 import LoadingState from '../components/LoadingState';
 import TubesBackground from '../components/TubesBackground';
@@ -196,7 +196,17 @@ const Dashboard = () => {
 
     // UI states
     const [selectedNode, setSelectedNode] = useState(null);
-    const [activeTab, setActiveTab] = useState('resources');
+    const [activeTab, setActiveTab] = useState(() => {
+        try {
+            const stored = sessionStorage.getItem('questmap_profile');
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                if (parsed.source_type === 'repo') return 'repo';
+            }
+        } catch (e) {}
+        return 'resources';
+    });
+    const [activeRepoSubtab, setActiveRepoSubtab] = useState('code');
     const [panelWidth, setPanelWidth] = useState(() => {
         const saved = Number(sessionStorage.getItem('questmap_panel_width'));
         if (Number.isFinite(saved) && saved >= MIN_PANEL_WIDTH) {
@@ -217,8 +227,8 @@ const Dashboard = () => {
     const tabs = useMemo(() => {
         if (profile?.source_type === 'repo') {
             return [
+                { id: 'repo', label: 'Repo', icon: GitBranch, color: 'text-blue-400', accent: 'bg-blue-400' },
                 { id: 'resources', label: 'Resources', icon: Youtube, color: 'text-red-400', accent: 'bg-red-400' },
-                { id: 'repo', label: 'Repo learning path', icon: GitBranch, color: 'text-blue-400', accent: 'bg-blue-400' },
                 { id: 'practice', label: 'Practice', icon: BookOpen, color: 'text-emerald-400', accent: 'bg-emerald-400' },
             ];
         } else {
@@ -537,6 +547,9 @@ const Dashboard = () => {
             code_files: repoAnalysis?.code_files || [],
         };
         setActiveTab(targetTab);
+        if (targetTab === 'repo') {
+            setActiveRepoSubtab('code');
+        }
         handleNodeSelect(repoNode);
     }, [handleNodeSelect, repoAnalysis?.code_ingestion]);
 
@@ -747,12 +760,7 @@ const Dashboard = () => {
                             <RepoOverview mapData={mapData} />
                         </div>
                     )}
-                    {/* Header below Repo Summary */}
-                    <div className="px-8 pt-4 pb-2 flex-shrink-0 flex items-center justify-between">
-                        <h2 className={`text-xl font-bold uppercase tracking-widest font-outfit ${isLightTheme ? 'text-gray-950' : 'text-white'}`}>
-                            Knowledge Map
-                        </h2>
-                    </div>
+
                     {/* Map */}
                     <div className="flex-1 overflow-hidden">
                         <LearningPathMap
@@ -821,22 +829,7 @@ const Dashboard = () => {
                         </div>
                     )}
 
-                    {/* Panel Title Overlay */}
-                    {!isPanelMaximized && (
-                        <div className="px-8 pb-4">
-                            <div className="flex items-center gap-3 opacity-30">
-                                {(() => {
-                                    const active = tabs.find(t => t.id === activeTab) || tabs[0];
-                                    return (
-                                        <>
-                                            <div className={cn("w-2 h-2 rounded-full", active.accent)} />
-                                            <span className={cn("text-[10px] font-black uppercase tracking-[0.5em]", isLightTheme ? "text-gray-600" : "")}>{active.label} Stream</span>
-                                        </>
-                                    );
-                                })()}
-                            </div>
-                        </div>
-                    )}
+
 
                     {/* Scrollable Content Area */}
                     <div className={cn("flex-1 overflow-y-auto px-8 pb-8 custom-scrollbar", isPanelMaximized && "pt-6")}>
@@ -867,13 +860,50 @@ const Dashboard = () => {
                                 </motion.div>
                             )}
                             {activeTab === 'repo' && (
-                                <motion.div key="repo" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
-                                    <RepoLearningPanel
-                                        userId={currentUserId}
-                                        skillLevel={profile.skill_level}
-                                        initialAnalysis={repoAnalysis}
-                                        onConceptSelect={handleRepoConceptSelect}
-                                    />
+                                <motion.div key="repo" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
+                                    <div className="grid grid-cols-2 gap-2 rounded-2xl border border-gray-700/40 bg-gray-900/40 p-1.5 resource-subtabs mb-4">
+                                        <button
+                                            type="button"
+                                            onClick={() => setActiveRepoSubtab('code')}
+                                            className={`h-10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 ${
+                                                activeRepoSubtab === 'code'
+                                                    ? 'bg-white/10 text-white shadow-sm'
+                                                    : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
+                                            }`}
+                                        >
+                                            <Code className="w-3.5 h-3.5" />
+                                            <span>Code</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setActiveRepoSubtab('path')}
+                                            className={`h-10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 ${
+                                                activeRepoSubtab === 'path'
+                                                    ? 'bg-white/10 text-white shadow-sm'
+                                                    : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
+                                            }`}
+                                        >
+                                            <GitBranch className="w-3.5 h-3.5" />
+                                            <span>Learning Path</span>
+                                        </button>
+                                    </div>
+                                    {activeRepoSubtab === 'code' ? (
+                                        <CodeEvidencePanel
+                                            key={selectedNode?.id || selectedNode?.label}
+                                            selectedNode={selectedNode}
+                                            userId={currentUserId}
+                                            isLightTheme={isLightTheme}
+                                            isMaximized={isPanelMaximized}
+                                            onToggleMaximize={(val) => setIsPanelMaximized(typeof val === 'boolean' ? val : !isPanelMaximized)}
+                                        />
+                                    ) : (
+                                        <RepoLearningPanel
+                                            userId={currentUserId}
+                                            skillLevel={profile.skill_level}
+                                            initialAnalysis={repoAnalysis}
+                                            onConceptSelect={(concept) => handleRepoConceptSelect(concept, 'repo')}
+                                        />
+                                    )}
                                 </motion.div>
                             )}
                             {activeTab === 'resources' && (
