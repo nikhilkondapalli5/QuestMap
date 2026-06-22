@@ -141,3 +141,9 @@ QuestMap applies a semantic threshold filter and exclusions for virtual environm
 | **AI Explain & Chat Panel** | ![Explain and Chat](./img/Explain%20mode.png) |
 | **YouTube Resources Discovery Tab** | ![YouTube Tab](./img/YT.png) |
 | **Articles & Documentation Curation Tab** | ![Article Tab](./img/Article.png) |
+
+---
+
+## 📄 License
+
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
