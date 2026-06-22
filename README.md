@@ -50,9 +50,10 @@ QuestMap applies a semantic threshold filter and exclusions for virtual environm
 ### 💻 Repository & Codebase Learning Architecture
 1. **Directory Tree Traversal**: The repository analyzer scans the directory recursively, filtering out configuration metadata and virtual directories (e.g., `.git`, `node_modules`, `.venv`, `dist`, `build`) to compile a clean, flat-file tree structure.
 2. **Syntax-Aware AST Chunking**: Code files are sent to the Python microservice, which utilizes `tree-sitter` parsers. The service breaks source files down along strict AST syntactic boundaries (functions, classes, methods, handlers) instead of raw line numbers, keeping scope and decorators intact.
-3. **Semantic Vector Mapping**: Extracted AST chunks are embedded via `gemini-embedding-001` and stored in a repository-specific Pinecone namespace.
-4. **Query Expansion & Linking**: Concept terms in the learning path undergo Gemini-driven expansion. The system queries Pinecone using a similarity filter (`0.6` cosine threshold) to map conceptual nodes on the map directly to matching file ranges and functions in the repo.
-5. **Interactive Repository Explorer**: The client React interface renders the codebase flat-file tree dynamically, highlight ranges in an integrated editor with line scroll-centering, maps interactive search keywords, provides controls for code explanation chats with context continuation, and supports resizable workspace panels.
+3. **LLM-Driven Concept Generation**: The codebase structure, metadata imports, AST code clusters, and the target repository's README file are compiled into an evidence catalog. This catalog is processed by Google Gemini to identify 8-10 core reusable programming concepts, sequence them logically based on learning difficulty, and format them into a structured DAG knowledge map for the dashboard.
+4. **Semantic Vector Mapping**: Extracted AST chunks are embedded via `gemini-embedding-001` and stored in a repository-specific Pinecone namespace.
+5. **Query Expansion & Linking**: Concept terms in the learning path undergo Gemini-driven expansion. The system queries Pinecone using a similarity filter (`0.6` cosine threshold) to map conceptual nodes on the map directly to matching file ranges and functions in the repo.
+6. **Interactive Repository Explorer**: The client React interface renders the codebase flat-file tree dynamically, highlight ranges in an integrated editor with line scroll-centering, maps interactive search keywords, provides controls for code explanation chats with context continuation, and supports resizable workspace panels.
 
 ---
 
