@@ -820,20 +820,7 @@ const Dashboard = () => {
                                     <Brain className="w-4 h-4 text-purple-400" />
                                     <span className={cn("text-[11px] font-black uppercase tracking-widest max-w-[200px] truncate", isLightTheme ? "text-gray-700" : "text-gray-300")}>{dashboardTitle}</span>
                                 </div>
-                                {profile?.source_type === 'repo' && readmeEvidence && (
-                                    <button
-                                        type="button"
-                                        onClick={() => setIsReadmeModalOpen(true)}
-                                        className={cn("px-3 py-1.5 rounded-full border text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5", 
-                                            isLightTheme 
-                                                ? "bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100" 
-                                                : "bg-blue-500/10 border-blue-500/20 text-blue-400 hover:bg-blue-500/20"
-                                        )}
-                                    >
-                                        <FileText className="w-3.5 h-3.5" />
-                                        <span>Readme</span>
-                                    </button>
-                                )}
+
                             </div>
                             {profile.source_type !== 'repo' && (
                                 <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.2em] border ${profile.skill_level === 'beginner' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
