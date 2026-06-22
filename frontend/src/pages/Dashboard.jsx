@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Compass, Lightbulb, BookOpen, Youtube, LogOut, Clock, Brain, Sparkles, RefreshCw, Moon, Sun, GitBranch, Code, Maximize2, Minimize2, FileText, X } from 'lucide-react';
+import { Compass, Lightbulb, BookOpen, Youtube, LogOut, Clock, Brain, Sparkles, RefreshCw, Moon, Sun, GitBranch, Code, Maximize2, Minimize2, FileText, X, PanelRightClose, PanelRightOpen } from 'lucide-react';
 import RecommendationList from '../components/RecommendationCard';
 import PracticePanel from '../components/PracticePanel';
 import ResourcePanel, { CodeEvidencePanel, MarkdownText } from '../components/ResourcePanel';
@@ -276,6 +276,9 @@ const Dashboard = () => {
     });
     const [isResizingPanel, setIsResizingPanel] = useState(false);
     const [isPanelMaximized, setIsPanelMaximized] = useState(false);
+    const [isSidePanelVisible, setIsSidePanelVisible] = useState(() => {
+        return sessionStorage.getItem('questmap_side_panel_visible') !== 'false';
+    });
     const [theme, setTheme] = useState(() => sessionStorage.getItem('questmap_theme') || 'light');
     const isLightTheme = theme === 'light';
     const [isReadmeModalOpen, setIsReadmeModalOpen] = useState(false);
@@ -607,6 +610,7 @@ const Dashboard = () => {
     // Load node-specific data when a node is selected
     const handleNodeSelect = useCallback(async (node) => {
         setSelectedNode(node);
+        setIsSidePanelVisible(true);
         const nodeId = node.id || node.label;
 
         // Check cache first — instant restore
@@ -733,6 +737,19 @@ const Dashboard = () => {
     useEffect(() => {
         sessionStorage.setItem('questmap_panel_width', String(panelWidth));
     }, [panelWidth]);
+
+    useEffect(() => {
+        sessionStorage.setItem('questmap_side_panel_visible', String(isSidePanelVisible));
+    }, [isSidePanelVisible]);
+
+    const hideSidePanel = useCallback(() => {
+        setIsSidePanelVisible(false);
+        setIsPanelMaximized(false);
+    }, []);
+
+    const showSidePanel = useCallback(() => {
+        setIsSidePanelVisible(true);
+    }, []);
 
     useEffect(() => {
         const handleResize = () => {
@@ -870,7 +887,7 @@ const Dashboard = () => {
             )}
 
             {/* Main Content */}
-            <div className="flex-1 flex overflow-hidden relative">
+            <div className={cn("flex-1 flex overflow-hidden relative", isSidePanelVisible && "max-md:flex-col")}>
 
                 {/* Background Decoration */}
                     <div className={cn("absolute inset-0 pointer-events-none", isLightTheme ? "opacity-0" : "opacity-20")}>
@@ -879,27 +896,45 @@ const Dashboard = () => {
                 </div>
 
                 {/* Left: Learning Path Map */}
-                <div className={cn("flex-1 flex flex-col min-w-0 relative z-10", isPanelMaximized && "hidden")}>
+                <div className={cn("flex-1 flex flex-col min-w-0 relative z-10", isPanelMaximized && isSidePanelVisible && "hidden")}>
                     {/* Repo Summary Section */}
                     {profile.source_type === 'repo' && mapData && (
-                        <div className="px-8 pt-6 pb-2 flex-shrink-0">
+                        <div className="px-4 md:px-8 pt-4 md:pt-6 pb-2 flex-shrink-0">
                             <RepoOverview mapData={mapData} />
                         </div>
                     )}
 
                     {/* Map */}
-                    <div className="flex-1 overflow-hidden">
+                    <div className="flex-1 overflow-hidden relative">
                         <LearningPathMap
                             mapData={mapData}
                             selectedNode={selectedNode}
                             onNodeSelect={handleNodeSelect}
                         />
+
+                        {!isSidePanelVisible && (
+                            <button
+                                type="button"
+                                onClick={showSidePanel}
+                                title="Show learning panel"
+                                aria-label="Show learning panel"
+                                className={cn(
+                                    "absolute right-3 top-3 z-40 flex items-center gap-2 rounded-2xl border px-3 py-3 shadow-lg backdrop-blur-md transition-all hover:scale-105",
+                                    isLightTheme
+                                        ? "bg-white/95 border-gray-200 text-gray-700 hover:text-gray-950"
+                                        : "bg-[#11131a]/95 border-white/10 text-gray-300 hover:text-white"
+                                )}
+                            >
+                                <PanelRightOpen className="w-4 h-4" />
+                                <span className="hidden sm:inline text-[10px] font-black uppercase tracking-widest">Panel</span>
+                            </button>
+                        )}
                     </div>
 
                     {/* Selected Node Status Bar removed per user request */}
                 </div>
 
-                {!isPanelMaximized && (
+                {isSidePanelVisible && !isPanelMaximized && (
                     <div
                         role="separator"
                         aria-orientation="vertical"
@@ -912,6 +947,24 @@ const Dashboard = () => {
                             isLightTheme ? "bg-transparent" : "bg-transparent"
                         )}
                     >
+                        <button
+                            type="button"
+                            onClick={(event) => {
+                                event.stopPropagation();
+                                hideSidePanel();
+                            }}
+                            onPointerDown={(event) => event.stopPropagation()}
+                            title="Hide learning panel"
+                            aria-label="Hide learning panel"
+                            className={cn(
+                                "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 rounded-full border p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-md",
+                                isLightTheme
+                                    ? "bg-white border-gray-200 text-gray-500 hover:text-gray-900"
+                                    : "bg-[#11131a] border-white/10 text-gray-400 hover:text-white"
+                            )}
+                        >
+                            <PanelRightClose className="w-3.5 h-3.5" />
+                        </button>
                         <div className={cn(
                             "h-14 w-1 rounded-full transition-colors",
                             isResizingPanel
@@ -924,25 +977,27 @@ const Dashboard = () => {
                 )}
 
                 {/* Right: Data Expansion Panels */}
+                {isSidePanelVisible && (
                 <div
                     className={cn(
-                        "flex-shrink-0 flex flex-col backdrop-blur-3xl border-l relative z-20 max-md:w-full",
-                        isPanelMaximized ? "w-full flex-1 border-l-0" : "",
-                        isLightTheme ? "bg-[#f8fafc]/90 border-gray-200" : "bg-[#11131a]/85 border-white/5"
+                        "flex-shrink-0 flex flex-col backdrop-blur-3xl border-l relative z-20 max-md:!w-full",
+                        isPanelMaximized ? "w-full flex-1 border-l-0" : "max-md:w-full max-md:border-l-0 max-md:border-t max-md:max-h-[42vh]",
+                        isLightTheme ? "bg-[#f8fafc]/90 border-gray-200 max-md:border-gray-200" : "bg-[#11131a]/85 border-white/5 max-md:border-white/5"
                     )}
                     style={isPanelMaximized ? undefined : { width: panelWidth }}
                 >
                     {/* Tab Selection */}
                     {!isPanelMaximized && (
-                        <div className={cn("flex p-2 m-4 rounded-[1.5rem] border", isLightTheme ? "bg-gray-100 border-gray-200" : "bg-white/5 border-white/10")}>
+                        <div className={cn("flex items-center gap-2 p-2 m-4 rounded-[1.5rem] border", isLightTheme ? "bg-gray-100 border-gray-200" : "bg-white/5 border-white/10")}>
+                            <div className="flex flex-1 min-w-0">
                             {tabs.map(tab => (
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
-                                    className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all relative ${activeTab === tab.id ? (isLightTheme ? 'text-gray-950 shadow-sm' : 'text-white shadow-xl') : 'text-gray-500 hover:text-gray-400'}`}
+                                    className={`flex-1 flex items-center justify-center gap-2 md:gap-3 py-3 md:py-4 rounded-2xl text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all relative min-w-0 ${activeTab === tab.id ? (isLightTheme ? 'text-gray-950 shadow-sm' : 'text-white shadow-xl') : 'text-gray-500 hover:text-gray-400'}`}
                                   >
-                                    <tab.icon className={cn("w-4 h-4", activeTab === tab.id ? tab.color : "text-gray-600")} />
-                                    {tab.label}
+                                    <tab.icon className={cn("w-4 h-4 flex-shrink-0", activeTab === tab.id ? tab.color : "text-gray-600")} />
+                                    <span className="truncate">{tab.label}</span>
                                     {activeTab === tab.id && (
                                         <motion.div
                                             layoutId="tab-pill"
@@ -952,6 +1007,21 @@ const Dashboard = () => {
                                     )}
                                 </button>
                             ))}
+                            </div>
+                            <button
+                                type="button"
+                                onClick={hideSidePanel}
+                                title="Hide learning panel"
+                                aria-label="Hide learning panel"
+                                className={cn(
+                                    "flex-shrink-0 rounded-xl border p-2.5 transition-colors",
+                                    isLightTheme
+                                        ? "border-gray-200 text-gray-500 hover:text-gray-900 hover:bg-white"
+                                        : "border-white/10 text-gray-400 hover:text-white hover:bg-white/10"
+                                )}
+                            >
+                                <PanelRightClose className="w-4 h-4" />
+                            </button>
                         </div>
                     )}
 
@@ -1072,6 +1142,7 @@ const Dashboard = () => {
                         </AnimatePresence>
                     </div>
                 </div>
+                )}
             </div>
 
             {/* Readme Modal */}
