@@ -889,9 +889,9 @@ const Dashboard = () => {
             {/* Main Content */}
             <div className={cn(
                 "flex-1 min-h-0 overflow-hidden relative",
-                isSidePanelVisible
-                    ? "md:flex max-md:grid max-md:grid-rows-[minmax(0,1fr)_minmax(220px,45%)]"
-                    : "flex"
+                !isSidePanelVisible && "flex",
+                isSidePanelVisible && isPanelMaximized && "flex flex-col",
+                isSidePanelVisible && !isPanelMaximized && "md:flex max-md:grid max-md:grid-rows-[minmax(0,1fr)_minmax(220px,45%)]"
             )}>
 
                 {/* Background Decoration */}
@@ -990,12 +990,37 @@ const Dashboard = () => {
                     className={cn(
                         "flex flex-col min-h-0 min-w-0 backdrop-blur-3xl border-l relative z-30",
                         isPanelMaximized
-                            ? "w-full flex-1 border-l-0"
+                            ? "w-full flex-1 min-h-0 border-l-0"
                             : "flex-shrink-0 max-md:!w-full max-md:border-l-0 max-md:border-t",
                         isLightTheme ? "bg-[#f8fafc]/90 border-gray-200 max-md:border-gray-200" : "bg-[#11131a]/85 border-white/5 max-md:border-white/5"
                     )}
                     style={isPanelMaximized ? undefined : { width: panelWidth }}
                 >
+                    {/* Mobile minimize bar when panel is maximized */}
+                    {isPanelMaximized && (
+                        <div className={cn(
+                            "flex-shrink-0 flex items-center justify-between gap-3 px-4 py-3 border-b md:hidden",
+                            isLightTheme ? "border-gray-200" : "border-white/5"
+                        )}>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                                {tabs.find(t => t.id === activeTab)?.label || 'Panel'}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => setIsPanelMaximized(false)}
+                                title="Minimize panel"
+                                aria-label="Minimize panel"
+                                className={cn(
+                                    "rounded-xl border p-2 transition-colors",
+                                    isLightTheme
+                                        ? "border-gray-200 text-gray-500 hover:text-gray-900 hover:bg-white"
+                                        : "border-white/10 text-gray-400 hover:text-white hover:bg-white/10"
+                                )}
+                            >
+                                <Minimize2 className="w-4 h-4" />
+                            </button>
+                        </div>
+                    )}
                     {/* Tab Selection */}
                     {!isPanelMaximized && (
                         <div className={cn("flex-shrink-0 flex items-center gap-2 p-2 m-2 md:m-4 rounded-[1.5rem] border", isLightTheme ? "bg-gray-100 border-gray-200" : "bg-white/5 border-white/10")}>
