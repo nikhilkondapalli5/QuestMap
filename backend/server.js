@@ -2,7 +2,7 @@ require('dotenv').config();
 const traceloop = require('@traceloop/node-server-sdk');
 
 traceloop.initialize({
-    appName: 'team-hackathon-backend',
+    appName: 'questmap-backend',
     baseUrl: process.env.TRACELOOP_BASE_URL || 'http://127.0.0.1:6006',
     disableBatch: true // Send traces immediately for local debugging
 });

@@ -138,6 +138,3 @@ The pipeline identifies and filters out bibliographies, citations, and metadata 
 | **Interactive Map** | ![Dashboard Map](/Users/konda/.gemini/antigravity/brain/2bb2f111-a840-4d23-83e3-c9dd39749c41/final_dashboard_personalization_1772973507895.png) |
 | **Practice Grounding** | ![Practice Panels](/Users/konda/.gemini/antigravity/brain/2bb2f111-a840-4d23-83e3-c9dd39749c41/dashboard_practice_content_1772941954570.png) |
 | **RAG Ingestion** | ![File Upload](/Users/konda/.gemini/antigravity/brain/2bb2f111-a840-4d23-83e3-c9dd39749c41/rag_categorized_upload_test_1772973077268.webp) |
-
----
-*Built for the 2026 AI Innovation Hackathon* 🚀
