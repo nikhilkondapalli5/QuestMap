@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Compass, Lightbulb, BookOpen, Youtube, LogOut, Clock, Brain, Sparkles, RefreshCw, Moon, Sun, GitBranch, Code, Maximize2, Minimize2, FileText, X, PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { Compass, Lightbulb, BookOpen, Youtube, LogOut, Clock, Brain, RefreshCw, Moon, Sun, GitBranch, Code, Maximize2, Minimize2, FileText, X, PanelRightClose, PanelRightOpen } from 'lucide-react';
 import RecommendationList from '../components/RecommendationCard';
 import PracticePanel from '../components/PracticePanel';
 import ResourcePanel, { CodeEvidencePanel, MarkdownText } from '../components/ResourcePanel';
@@ -849,14 +849,6 @@ const Dashboard = () => {
                             )}
                         </div>
                         <div className="flex items-center gap-6">
-                            {profileData && (
-                                <div className="hidden lg:flex items-center gap-6 text-[10px] font-black uppercase tracking-widest text-gray-500">
-                                    <span className="flex items-center gap-2">
-                                        <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                                        {profileData.recommended_pace} PACE
-                                    </span>
-                                </div>
-                            )}
                             <button
                                 type="button"
                                 onClick={handleThemeToggle}
