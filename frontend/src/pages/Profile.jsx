@@ -59,7 +59,7 @@ const saveSearchHistoryItem = (item) => {
 const Profile = () => {
     const navigate = useNavigate();
     const [learningSource, setLearningSource] = useState('repo');
-    const [theme, setTheme] = useState(() => sessionStorage.getItem('questmap_theme') || 'dark');
+    const [theme, setTheme] = useState(() => sessionStorage.getItem('questmap_theme') || 'light');
     const isLightTheme = theme === 'light';
 
     const handleThemeToggle = useCallback(() => {

@@ -14,6 +14,13 @@ const EvidencePill = ({ evidence }) => (
     </span>
 );
 
+const getEvidenceItems = (analysisResult) => {
+    const evidence = analysisResult?.evidence;
+    if (Array.isArray(evidence)) return evidence;
+    if (Array.isArray(evidence?.items)) return evidence.items;
+    return [];
+};
+
 const RepoLearningPanel = ({ userId, skillLevel, initialAnalysis, onConceptSelect }) => {
     const [repoUrl, setRepoUrl] = useState('');
     const [analysisResult, setAnalysisResult] = useState(initialAnalysis || null);
@@ -21,7 +28,7 @@ const RepoLearningPanel = ({ userId, skillLevel, initialAnalysis, onConceptSelec
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
-    const evidenceById = new Map((analysisResult?.evidence || []).map(item => [item.id, item]));
+    const evidenceById = new Map(getEvidenceItems(analysisResult).map(item => [item.id, item]));
     const concepts = analysisResult?.analysis?.concepts || [];
     const learningPath = analysisResult?.analysis?.learning_path || [];
     const selectedConcept = concepts.find(concept => concept.id === selectedConceptId) || concepts[0] || null;
@@ -29,7 +36,7 @@ const RepoLearningPanel = ({ userId, skillLevel, initialAnalysis, onConceptSelec
     useEffect(() => {
         if (!initialAnalysis) return;
         setAnalysisResult(initialAnalysis);
-        setRepoUrl(initialAnalysis.repo?.url || '');
+        setRepoUrl(initialAnalysis.repo?.url || initialAnalysis.repoUrl || '');
         setSelectedConceptId(initialAnalysis.analysis?.learning_path?.[0]?.concept_id || initialAnalysis.analysis?.concepts?.[0]?.id || null);
     }, [initialAnalysis]);
 
@@ -64,8 +71,8 @@ const RepoLearningPanel = ({ userId, skillLevel, initialAnalysis, onConceptSelec
         setSelectedConceptId(concept.id);
         onConceptSelect?.({
             ...concept,
-            repoFullName: analysisResult?.repo?.fullName,
-            repoUrl: analysisResult?.repo?.url,
+            repoFullName: analysisResult?.repo?.fullName || analysisResult?.repoFullName,
+            repoUrl: analysisResult?.repo?.url || analysisResult?.repoUrl,
         }, targetTab);
     };
 

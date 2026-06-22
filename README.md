@@ -1,6 +1,6 @@
 # 🗺️ QuestMap AI: RAG-Powered Personalized Learning & Code Explorer
 
-QuestMap is a next-generation educational platform that transforms static documents and source code repositories into dynamic, personalized learning journeys. By leveraging **Retrieval-Augmented Generation (RAG)**, QuestMap grounds its AI tutor in your specific source materials, ensuring that every learning path, practice quiz, and recommended resource is perfectly aligned with your curriculum or codebase.
+QuestMap is an educational platform that transforms source documents and code repositories into interactive, personalized learning journeys. By leveraging **Retrieval-Augmented Generation (RAG)**, QuestMap grounds its AI tutor in your specific source materials to align the learning path, practice quizzes, and recommended resources with your curriculum or codebase.
 
 ![QuestMap Dashboard](/Users/konda/.gemini/antigravity/brain/2bb2f111-a840-4d23-83e3-c9dd39749c41/final_dashboard_personalization_1772973507895.png)
 *(Note: Visual asset paths are configured locally; update to relative or hosting URLs for remote deployment)*
@@ -8,38 +8,38 @@ QuestMap is a next-generation educational platform that transforms static docume
 ## 🚀 Key Features
 
 ### 🧠 Adaptive Knowledge Maps
-Instantly visualize your learning journey. QuestMap scans your goals, background, and uploaded documents to generate a structured, interactive map of sub-topics.
+Visualize your learning journey. QuestMap processes your goals, background, and uploaded documents to generate a structured, interactive map of sub-topics.
 
 ### 💻 GitHub Repository Code Explorer
-Analyze complete repositories in depth. QuestMap parses your codebase, generates abstract syntax tree (AST) code chunks, indexes them semantically in Pinecone, and maps files directly to conceptual learning nodes. Users can explore a custom, interactive IDE-like flat file tree, highlight matching line ranges, navigate snippets with previous/next buttons, and resize the code editor window dynamically.
+Analyze code repositories. QuestMap parses your codebase, generates abstract syntax tree (AST) code chunks, indexes them semantically in Pinecone, and maps files to conceptual learning nodes. Users can explore a custom, interactive IDE-like flat file tree, highlight matching line ranges, navigate snippets with previous/next buttons, and resize the code editor window dynamically.
 
 ### 📚 Strict RAG Grounding
-No more AI hallucinations. QuestMap's specialized "Strict Grounding" engine ensures that practice questions and recommendations stick purely to the terminology and concepts found in your uploaded PDFs, notes, and code.
+QuestMap uses Retrieval-Augmented Generation (RAG) to ground practice questions and recommendations in the concepts found in your uploaded PDFs, notes, and code.
 
 ### 🛡️ RAG Relevance Guard & Code Threshold
-Topic isolation at scale. QuestMap uses a high-confidence semantic threshold (0.6) and "Domain-Aware" instructions to ensure your old documents and files never pollute a new, unrelated learning quest. Virtual environments (`venv`, `.venv`) and configuration files are excluded automatically to guarantee context purity.
+QuestMap applies a semantic threshold filter and exclusions for virtual environments (`venv`, `.venv`) or configuration files to maintain relevance between document context and the active learning quest.
 
 ### ⚡ Parallelized Learning Flow & API Optimization
-Our optimized backend handles RAG retrieval, practice generation, and resource curation in parallel, delivering a zero-lag experience. Creators and YouTube recommendations are capped to at most 2 videos per channel to avoid spam, while local subscriptions are preserved.
+Our backend processes RAG retrieval, practice generation, and resource curation in parallel to optimize response times. YouTube recommendations are capped to at most 2 videos per channel to avoid repetitive listings.
 
 ### 🎯 Smart Filtering
-The system automatically identifies and discards bibliographies, citations, and metadata during the chunking process, keeping your learning context clean and focused on actual educational content.
+The pipeline identifies and filters out bibliographies, citations, and metadata during document chunking to focus the context on educational content.
 
 ---
 
 ## 🛠️ Tech Stack
 
 **Frontend:**
-- **React (Vite)**: For a lightning-fast UI.
+- **React (Vite)**: Web frontend framework.
 - **Framer Motion**: For fluid animations and transitions.
 - **Lucide Icons**: For a modern, clean design system.
 - **Tailwind CSS**: For responsive and sleek styling.
 
 **Backend:**
-- **Node.js & Express**: High-performance API layer.
+- **Node.js & Express**: API web server layer.
 - **Python AST Service**: FastAPI service utilizing `tree-sitter` for syntactic code chunking.
-- **Pinecone Vector DB**: High-speed retrieval for RAG and semantic code searches.
-- **Google Gemini 1.5 Pro/Flash**: The "brain" behind the knowledge maps, query expansions, and grounding.
+- **Pinecone Vector DB**: Vector database for RAG retrieval and semantic code searches.
+- **Google Gemini 1.5 Pro/Flash**: Language models used for generating knowledge maps, query expansions, and grounding.
 - **MongoDB Atlas**: Persistent storage for user profiles, files, and quest history.
 
 ---

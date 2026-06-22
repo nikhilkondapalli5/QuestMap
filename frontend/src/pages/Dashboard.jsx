@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Compass, Lightbulb, BookOpen, Youtube, LogOut, Clock, Brain, Sparkles, RefreshCw, Moon, Sun, GitBranch, Code } from 'lucide-react';
+import { Compass, Lightbulb, BookOpen, Youtube, LogOut, Clock, Brain, Sparkles, RefreshCw, Moon, Sun, GitBranch, Code, Maximize2, Minimize2, FileText, X } from 'lucide-react';
 import RecommendationList from '../components/RecommendationCard';
 import PracticePanel from '../components/PracticePanel';
-import ResourcePanel, { CodeEvidencePanel } from '../components/ResourcePanel';
+import ResourcePanel, { CodeEvidencePanel, MarkdownText } from '../components/ResourcePanel';
 import RepoLearningPanel from '../components/RepoLearningPanel';
 import LoadingState from '../components/LoadingState';
 import TubesBackground from '../components/TubesBackground';
@@ -91,9 +91,23 @@ const getRepoEstimatedHours = (concept) => {
     return Math.min(8, base + Math.min(3, Math.ceil((keywordCount + goalCount + evidenceCount) / 4)));
 };
 
+const getRepoMeta = (repoResult) => {
+    const repo = repoResult?.repo || {};
+    return {
+        url: repo.url || repoResult?.repoUrl || '',
+        fullName: repo.fullName || repoResult?.repoFullName || 'GitHub repo',
+        name: repo.name || repoResult?.repoName || 'repo',
+        defaultBranch: repo.defaultBranch || repoResult?.defaultBranch || '',
+        commitSha: repo.commitSha || repoResult?.commitSha || '',
+    };
+};
+
 const buildRepoMapData = (repoResult, skillLevel) => {
     const concepts = repoResult?.analysis?.concepts || [];
+    const repoMeta = getRepoMeta(repoResult);
     const codeGraph = repoResult?.code_graph || repoResult?.codeGraph || null;
+    const codeIngestion = repoResult?.code_ingestion || repoResult?.codeIngestion || null;
+    const codeFiles = repoResult?.code_files || repoResult?.codeFiles || [];
     const evidenceClusterMap = buildEvidenceClusterMap(codeGraph);
     const conceptById = new Map(concepts.map(concept => [concept.id, concept]));
     const path = repoResult?.analysis?.learning_path?.length
@@ -108,7 +122,7 @@ const buildRepoMapData = (repoResult, skillLevel) => {
             if (!concept) return null;
             const pathOrder = step.order ?? index + 1;
             return {
-                id: `repo:${repoResult.repo?.fullName || 'repo'}:${concept.id}`,
+                id: `repo:${repoMeta.fullName}:${concept.id}`,
                 label: concept.title,
                 status: index === 0 ? 'recommended_next' : 'not_started',
                 bloom_level: getRepoBloomLevel(concept, pathOrder, totalSteps),
@@ -126,20 +140,20 @@ const buildRepoMapData = (repoResult, skillLevel) => {
                 pathOrder,
                 why_now: step.why_now || '',
                 codeClusterCount: (concept.code_cluster_ids || []).length,
-                repoFullName: repoResult.repo?.fullName,
+                repoFullName: repoMeta.fullName,
                 why_relevant: concept.why_relevant,
                 practice_focus: concept.practice_focus,
                 search_query: concept.search_query || step.search_query || '',
                 code_references: concept.code_references || step.code_references || [],
-                code_ingestion: repoResult.code_ingestion || null,
-                code_files: repoResult.code_files || [],
+                code_ingestion: codeIngestion,
+                code_files: codeFiles,
             };
         })
         .filter(Boolean);
 
     return {
-        topic: repoResult.repo?.fullName || 'GitHub repo',
-        title: `Concept path for ${repoResult.repo?.fullName || 'GitHub repo'}`,
+        topic: repoMeta.fullName,
+        title: `Concept path for ${repoMeta.fullName}`,
         total_estimated_hours: nodes.reduce((sum, node) => sum + (node.estimated_hours || 0), 0),
         nodes,
         edges: [],
@@ -151,8 +165,9 @@ const buildRepoMapData = (repoResult, skillLevel) => {
 
 const buildRepoProfileData = (repoResult, skillLevel) => {
     const concepts = repoResult?.analysis?.concepts || [];
+    const repoMeta = getRepoMeta(repoResult);
     return {
-        topic: repoResult.repo?.fullName || 'GitHub repo concepts',
+        topic: repoMeta.fullName || 'GitHub repo concepts',
         skill_level: skillLevel || 'beginner',
         learner_summary: repoResult.analysis?.repo_summary?.plain_english || 'A repo-based concept learning path was generated.',
         estimated_total_hours: concepts.reduce((sum, concept) => sum + getRepoEstimatedHours(concept), 0),
@@ -166,6 +181,7 @@ const buildRepoProfileData = (repoResult, skillLevel) => {
 
 const buildRepoRecommendations = (repoResult, skillLevel) => {
     const concepts = repoResult?.analysis?.concepts || [];
+    const repoMeta = getRepoMeta(repoResult);
     return concepts.slice(0, 6).map((concept, index) => ({
         id: `repo-rec-${concept.id}`,
         priority: index < 2 ? 'high' : 'medium',
@@ -174,9 +190,48 @@ const buildRepoRecommendations = (repoResult, skillLevel) => {
         description: (concept.learning_goals || []).slice(0, 2).join(' ') || concept.practice_focus || `Build general understanding of ${concept.title}.`,
         reason: concept.why_relevant,
         estimated_hours: getRepoEstimatedHours(concept),
-        related_to_goal: repoResult.repo?.fullName || 'GitHub repo',
+        related_to_goal: repoMeta.fullName,
         prerequisites_met: index === 0,
     }));
+};
+
+const ReadmeModal = ({ isOpen, onClose, readmeContent, isLightTheme }) => {
+    if (!isOpen || !readmeContent) return null;
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div 
+                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                onClick={onClose}
+            />
+            
+            <div className={`relative w-full max-w-3xl max-h-[85vh] overflow-hidden rounded-3xl border shadow-2xl flex flex-col ${
+                isLightTheme
+                    ? 'bg-white border-gray-200 text-gray-900'
+                    : 'bg-[#15171e] border-white/10 text-white'
+            }`}>
+                {/* Floating absolute-positioned close button */}
+                <button 
+                    type="button" 
+                    onClick={onClose}
+                    className={`absolute top-4 right-4 z-50 p-1.5 rounded-lg transition-colors border ${
+                        isLightTheme
+                            ? 'bg-white hover:bg-gray-100 text-gray-500 hover:text-gray-900 border-gray-200 shadow-sm'
+                            : 'bg-[#15171e] hover:bg-white/10 text-gray-400 hover:text-white border-white/10'
+                    }`}
+                    title="Close README"
+                >
+                    <X className="w-4 h-4" />
+                </button>
+                
+                <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                    <div className="prose prose-sm dark:prose-invert max-w-none">
+                        <MarkdownText text={readmeContent} />
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
 };
 
 const Dashboard = () => {
@@ -221,8 +276,14 @@ const Dashboard = () => {
     });
     const [isResizingPanel, setIsResizingPanel] = useState(false);
     const [isPanelMaximized, setIsPanelMaximized] = useState(false);
-    const [theme, setTheme] = useState(() => sessionStorage.getItem('questmap_theme') || 'dark');
+    const [theme, setTheme] = useState(() => sessionStorage.getItem('questmap_theme') || 'light');
     const isLightTheme = theme === 'light';
+    const [isReadmeModalOpen, setIsReadmeModalOpen] = useState(false);
+
+    const readmeEvidence = useMemo(() => {
+        if (!repoAnalysis || !Array.isArray(repoAnalysis.evidence)) return null;
+        return repoAnalysis.evidence.find(item => item.type === 'readme');
+    }, [repoAnalysis]);
 
     const tabs = useMemo(() => {
         if (profile?.source_type === 'repo') {
@@ -470,6 +531,70 @@ const Dashboard = () => {
         };
     }, [currentUserId, initialLoadComplete, profile?.topic, profile?.source_type]);
 
+    // Polling hook for background repository ingestion
+    useEffect(() => {
+        if (!repoAnalysis) return;
+        const status = repoAnalysis.code_ingestion?.status || repoAnalysis.codeIngestion?.status;
+        if (status !== 'processing') return;
+
+        let active = true;
+        const analysisId = repoAnalysis.id || repoAnalysis._id;
+        if (!analysisId) return;
+
+        const interval = setInterval(async () => {
+            try {
+                const res = await fetch(`${API_BASE}/repo/analysis/${analysisId}`);
+                if (!res.ok) return;
+                const data = await res.json();
+
+                if (!active) return;
+
+                const newStatus = data.codeIngestion?.status || data.code_ingestion?.status;
+                if (newStatus !== 'processing') {
+                    clearInterval(interval);
+
+                    const repoProfileData = buildRepoProfileData(data, profile.skill_level);
+                    const repoMapData = buildRepoMapData(data, profile.skill_level);
+                    const repoRecommendations = buildRepoRecommendations(data, profile.skill_level);
+
+                    setRepoAnalysis(data);
+                    setProfileData(repoProfileData);
+                    setMapData(repoMapData);
+                    setRecommendations(repoRecommendations);
+
+                    setSelectedNode(prev => {
+                        if (!prev) return null;
+                        const previousConceptId = String(prev.id || '').split(':').pop();
+                        const updatedNode = repoMapData.nodes.find(n => (
+                            n.id === prev.id ||
+                            String(n.id || '').split(':').pop() === previousConceptId ||
+                            n.label === prev.label
+                        ));
+                        return updatedNode || prev;
+                    });
+
+                    // Update session storage cache
+                    sessionStorage.setItem('questmap_dashboard_cache', JSON.stringify({
+                        __version: DASHBOARD_CACHE_VERSION,
+                        sourceKey: getProfileSourceKey(profile),
+                        topic: repoMapData.topic,
+                        mapData: repoMapData,
+                        recommendations: repoRecommendations,
+                        profileData: repoProfileData,
+                        repoAnalysis: data,
+                    }));
+                }
+            } catch (err) {
+                console.error("Error polling repo analysis status:", err);
+            }
+        }, 3000);
+
+        return () => {
+            active = false;
+            clearInterval(interval);
+        };
+    }, [repoAnalysis, profile, API_BASE]);
+
     // Persist node cache to sessionStorage (survives quiz navigation)
     const persistNodeCache = useCallback((cache) => {
         try {
@@ -532,6 +657,8 @@ const Dashboard = () => {
     }, [profile, apiFetch, persistNodeCache]);
 
     const handleRepoConceptSelect = useCallback((concept, targetTab = 'resources') => {
+        const codeIngestion = repoAnalysis?.code_ingestion || repoAnalysis?.codeIngestion || null;
+        const codeFiles = repoAnalysis?.code_files || repoAnalysis?.codeFiles || [];
         const repoNode = {
             id: `repo:${concept.repoFullName || 'repo'}:${concept.id}`,
             label: concept.title,
@@ -543,15 +670,15 @@ const Dashboard = () => {
             resourceQuery: concept.resource_query,
             search_query: concept.search_query || '',
             code_references: concept.code_references || [],
-            code_ingestion: repoAnalysis?.code_ingestion || null,
-            code_files: repoAnalysis?.code_files || [],
+            code_ingestion: codeIngestion,
+            code_files: codeFiles,
         };
         setActiveTab(targetTab);
         if (targetTab === 'repo') {
             setActiveRepoSubtab('code');
         }
         handleNodeSelect(repoNode);
-    }, [handleNodeSelect, repoAnalysis?.code_ingestion]);
+    }, [handleNodeSelect, repoAnalysis]);
 
     const handleLogout = () => {
         sessionStorage.removeItem('questmap_profile');
@@ -688,9 +815,25 @@ const Dashboard = () => {
                                 <span className={cn("text-lg font-black tracking-tighter uppercase font-outfit", isLightTheme ? "text-gray-950" : "text-white")}>QuestMap.AI</span>
                             </div>
                             <div className={cn("h-6 w-px", isLightTheme ? "bg-gray-200" : "bg-white/10")} />
-                            <div className={cn("flex items-center gap-3 px-4 py-1.5 rounded-full border", isLightTheme ? "bg-gray-100 border-gray-200" : "bg-white/5 border-white/10")}>
-                                <Brain className="w-4 h-4 text-purple-400" />
-                                <span className={cn("text-[11px] font-black uppercase tracking-widest max-w-[200px] truncate", isLightTheme ? "text-gray-700" : "text-gray-300")}>{dashboardTitle}</span>
+                            <div className="flex items-center gap-2">
+                                <div className={cn("flex items-center gap-3 px-4 py-1.5 rounded-full border", isLightTheme ? "bg-gray-100 border-gray-200" : "bg-white/5 border-white/10")}>
+                                    <Brain className="w-4 h-4 text-purple-400" />
+                                    <span className={cn("text-[11px] font-black uppercase tracking-widest max-w-[200px] truncate", isLightTheme ? "text-gray-700" : "text-gray-300")}>{dashboardTitle}</span>
+                                </div>
+                                {profile?.source_type === 'repo' && readmeEvidence && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsReadmeModalOpen(true)}
+                                        className={cn("px-3 py-1.5 rounded-full border text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5", 
+                                            isLightTheme 
+                                                ? "bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100" 
+                                                : "bg-blue-500/10 border-blue-500/20 text-blue-400 hover:bg-blue-500/20"
+                                        )}
+                                    >
+                                        <FileText className="w-3.5 h-3.5" />
+                                        <span>Readme</span>
+                                    </button>
+                                )}
                             </div>
                             {profile.source_type !== 'repo' && (
                                 <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.2em] border ${profile.skill_level === 'beginner' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
@@ -704,10 +847,6 @@ const Dashboard = () => {
                         <div className="flex items-center gap-6">
                             {profileData && (
                                 <div className="hidden lg:flex items-center gap-6 text-[10px] font-black uppercase tracking-widest text-gray-500">
-                                    <span className="flex items-center gap-2">
-                                        <Clock className="w-3.5 h-3.5 text-blue-400" />
-                                        {profileData.estimated_total_hours || mapData?.total_estimated_hours || '?'}H TOTAL
-                                    </span>
                                     <span className="flex items-center gap-2">
                                         <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                                         {profileData.recommended_pace} PACE
@@ -861,31 +1000,54 @@ const Dashboard = () => {
                             )}
                             {activeTab === 'repo' && (
                                 <motion.div key="repo" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
-                                    <div className="grid grid-cols-2 gap-2 rounded-2xl border border-gray-700/40 bg-gray-900/40 p-1.5 resource-subtabs mb-4">
-                                        <button
-                                            type="button"
-                                            onClick={() => setActiveRepoSubtab('code')}
-                                            className={`h-10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 ${
-                                                activeRepoSubtab === 'code'
-                                                    ? 'bg-white/10 text-white shadow-sm'
-                                                    : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
-                                            }`}
-                                        >
-                                            <Code className="w-3.5 h-3.5" />
-                                            <span>Code</span>
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setActiveRepoSubtab('path')}
-                                            className={`h-10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 ${
-                                                activeRepoSubtab === 'path'
-                                                    ? 'bg-white/10 text-white shadow-sm'
-                                                    : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
-                                            }`}
-                                        >
-                                            <GitBranch className="w-3.5 h-3.5" />
-                                            <span>Learning Path</span>
-                                        </button>
+                                    <div className={`sticky top-0 z-30 -mx-8 px-8 pt-2 pb-4 border-b space-y-4 backdrop-blur-md ${
+                                        isLightTheme 
+                                            ? 'bg-[#f8fafc]/95 border-gray-200' 
+                                            : 'bg-[#11131a]/95 border-white/5'
+                                    }`}>
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div className="flex items-center gap-2">
+                                                <GitBranch className="w-4 h-4 text-blue-500 animate-pulse" />
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                                                    Repository Learning
+                                                </span>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsPanelMaximized(!isPanelMaximized)}
+                                                title={isPanelMaximized ? "Minimize panel" : "Maximize panel"}
+                                                className="rounded-lg border border-gray-700/50 p-1.5 text-gray-400 transition hover:border-gray-600 hover:text-gray-200 flex items-center justify-center"
+                                            >
+                                                {isPanelMaximized ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                                            </button>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-2 rounded-2xl border border-gray-700/40 bg-gray-900/40 p-1.5 resource-subtabs">
+                                            <button
+                                                type="button"
+                                                onClick={() => setActiveRepoSubtab('code')}
+                                                className={`h-10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 ${
+                                                    activeRepoSubtab === 'code'
+                                                        ? 'bg-white/10 text-white shadow-sm'
+                                                        : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
+                                                }`}
+                                            >
+                                                <Code className="w-3.5 h-3.5" />
+                                                <span>Code</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setActiveRepoSubtab('path')}
+                                                className={`h-10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 ${
+                                                    activeRepoSubtab === 'path'
+                                                        ? 'bg-white/10 text-white shadow-sm'
+                                                        : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
+                                                }`}
+                                            >
+                                                <GitBranch className="w-3.5 h-3.5" />
+                                                <span>Learning Path</span>
+                                            </button>
+                                        </div>
                                     </div>
                                     {activeRepoSubtab === 'code' ? (
                                         <CodeEvidencePanel
@@ -895,6 +1057,7 @@ const Dashboard = () => {
                                             isLightTheme={isLightTheme}
                                             isMaximized={isPanelMaximized}
                                             onToggleMaximize={(val) => setIsPanelMaximized(typeof val === 'boolean' ? val : !isPanelMaximized)}
+                                            showInnerMaximizer={false}
                                         />
                                     ) : (
                                         <RepoLearningPanel
@@ -923,6 +1086,14 @@ const Dashboard = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Readme Modal */}
+            <ReadmeModal
+                isOpen={isReadmeModalOpen}
+                onClose={() => setIsReadmeModalOpen(false)}
+                readmeContent={readmeEvidence?.detail}
+                isLightTheme={isLightTheme}
+            />
         </div>
     );
 };

@@ -2223,6 +2223,52 @@ app.post('/api/user-preferences', async (req, res) => {
 
 // ── GitHub Repo Concept Learning ───────────────────────────────────────────
 
+async function runRepoIngestionInBackground({ userId, repo, sourceFiles, initialAnalysis, codeGraph, analysisId }) {
+    console.log(`[Repo Ingestion Background] Starting background ingestion for analysis ${analysisId}...`);
+    try {
+        const linked = await ingestAndLinkRepoCode({
+            userId,
+            repo,
+            sourceFiles,
+            concepts: initialAnalysis.concepts,
+            callLlm: callGemini,
+            codeGraph,
+        });
+
+        const codeRefsByConceptId = new Map(linked.concepts.map(concept => [concept.id, concept.code_references || []]));
+        const updatedAnalysis = {
+            ...initialAnalysis,
+            concepts: linked.concepts,
+            learning_path: (initialAnalysis.learning_path || []).map(step => ({
+                ...step,
+                code_references: codeRefsByConceptId.get(step.concept_id) || [],
+            })),
+        };
+
+        await RepoAnalysis.findByIdAndUpdate(analysisId, {
+            analysis: updatedAnalysis,
+            codeIngestion: {
+                status: 'ready',
+                ...linked.ingestion,
+            },
+            codeFiles: linked.codeFiles || [],
+        });
+        console.log(`[Repo Ingestion Background] Background ingestion completed successfully for analysis ${analysisId}`);
+    } catch (err) {
+        console.error(`[Repo Ingestion Background] Background ingestion failed for analysis ${analysisId}:`, err);
+        try {
+            await RepoAnalysis.findByIdAndUpdate(analysisId, {
+                codeIngestion: {
+                    status: 'failed',
+                    reason: err.message,
+                }
+            });
+        } catch (dbErr) {
+            console.error('[Repo Ingestion Background] Failed to save failure state to DB:', dbErr.message);
+        }
+    }
+}
+
 app.post('/api/repo/analyze', async (req, res) => {
     try {
         const { userId, repoUrl, skillLevel = 'beginner' } = req.body;
@@ -2242,7 +2288,7 @@ app.post('/api/repo/analyze', async (req, res) => {
             }).sort({ createdAt: -1 }).lean();
 
             if (existing && existing.codeIngestion?.status !== 'failed') {
-                console.log(`[Repo Analysis] Cache HIT for user ${userId}, repo ${repoUrl}, returning saved analysis.`);
+                console.log(`[Repo Analysis] Cache HIT for user ${userId}, repo ${repoUrl}, returning saved analysis (status: ${existing.codeIngestion?.status}).`);
                 return res.json({
                     id: existing._id,
                     transient: false,
@@ -2269,46 +2315,18 @@ app.post('/api/repo/analyze', async (req, res) => {
             callLlm: callGemini,
         });
 
+        const hasSourceFiles = isMongoReady() && result.sourceFiles?.length;
         let codeIngestion = {
-            status: isMongoReady() ? 'skipped' : 'unavailable',
-            reason: isMongoReady() ? 'No source files selected for code evidence.' : 'MongoDB is required for repo code evidence storage.',
+            status: hasSourceFiles ? 'processing' : (isMongoReady() ? 'skipped' : 'unavailable'),
+            reason: hasSourceFiles 
+                ? 'AST code block chunking & vector embedding in progress...' 
+                : (isMongoReady() ? 'No source files selected for code evidence.' : 'MongoDB is required for repo code evidence storage.'),
         };
+
         let codeFiles = (result.sourceFiles || []).map(file => ({
             filePath: file.path,
             language: file.path?.endsWith('.py') || file.path?.endsWith('.ipynb') ? 'python' : 'text',
         }));
-        if (isMongoReady() && result.sourceFiles?.length) {
-            try {
-                const linked = await ingestAndLinkRepoCode({
-                    userId,
-                    repo: result.repo,
-                    sourceFiles: result.sourceFiles,
-                    concepts: result.analysis.concepts,
-                    callLlm: callGemini,
-                    codeGraph: result.codeGraph,
-                });
-                const codeRefsByConceptId = new Map(linked.concepts.map(concept => [concept.id, concept.code_references || []]));
-                result.analysis = {
-                    ...result.analysis,
-                    concepts: linked.concepts,
-                    learning_path: (result.analysis.learning_path || []).map(step => ({
-                        ...step,
-                        code_references: codeRefsByConceptId.get(step.concept_id) || [],
-                    })),
-                };
-                codeIngestion = {
-                    status: 'ready',
-                    ...linked.ingestion,
-                };
-                codeFiles = linked.codeFiles || codeFiles;
-            } catch (err) {
-                console.warn('[Repo Code Evidence] Skipped:', err.message);
-                codeIngestion = {
-                    status: 'failed',
-                    reason: err.message,
-                };
-            }
-        }
 
         let saved = null;
         if (isMongoReady()) {
@@ -2329,6 +2347,20 @@ app.post('/api/repo/analyze', async (req, res) => {
                 codeIngestion,
                 codeFiles,
                 status: 'ready',
+            });
+        }
+
+        // Spawn background task for indexing code blocks
+        if (saved && hasSourceFiles) {
+            runRepoIngestionInBackground({
+                userId,
+                repo: result.repo,
+                sourceFiles: result.sourceFiles,
+                initialAnalysis: result.analysis,
+                codeGraph: result.codeGraph,
+                analysisId: saved._id,
+            }).catch(err => {
+                console.error('[Repo Ingestion Background] Unhandled rejection:', err);
             });
         }
 

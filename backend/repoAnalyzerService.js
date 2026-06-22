@@ -24,6 +24,7 @@ const MANIFEST_NAMES = new Set([
 const MAX_TREE_PATHS = 600;
 const MAX_SAMPLE_FILES = 150;
 const MAX_FILE_BYTES = 250000;
+const MAX_NOTEBOOK_FILE_BYTES = 500000;
 const MAX_README_CHARS = 30000;
 const MAX_SAMPLE_CHARS = 2600;
 const MAX_CODE_GRAPH_FILES = 80;
@@ -94,7 +95,8 @@ async function fetchGithubFile({ owner, repo, path, ref }) {
 
     if (!response.ok) return null;
     const data = await response.json();
-    if (Array.isArray(data) || data.type !== 'file' || data.size > MAX_FILE_BYTES || !data.content) return null;
+    const sizeLimit = getExtension(path) === '.ipynb' ? MAX_NOTEBOOK_FILE_BYTES : MAX_FILE_BYTES;
+    if (Array.isArray(data) || data.type !== 'file' || data.size > sizeLimit || !data.content) return null;
 
     return decodeBase64Content(data.content);
 }
@@ -341,10 +343,8 @@ async function buildRepoCodeGraph(sourceFiles = []) {
         .filter(file => file?.path && file?.text)
         .slice(0, MAX_CODE_GRAPH_FILES);
     const allPaths = new Set(selectedFiles.map(file => file.path));
-    const files = [];
-    const blocks = [];
 
-    for (const file of selectedFiles) {
+    const parsedFiles = await parallelLimit(selectedFiles.map(file => async () => {
         const language = getExtension(file.path) === '.ipynb' ? 'python' : undefined;
         const parsed = await parseCodeBlocks({ filePath: file.path, content: file.text }).catch(() => []);
         const imports = extractAllImports(file.path, file.text);
@@ -359,14 +359,22 @@ async function buildRepoCodeGraph(sourceFiles = []) {
             language: block.language || language || languageForSourcePath(file.path),
         }));
 
-        files.push({
+        return {
             path: file.path,
             role: fileRole(file.path),
             imports: [...new Set(externalImports)].slice(0, 20),
             localImports: localImports.map(item => item.resolvedPath).slice(0, 20),
             blocks: fileBlocks.slice(0, 12),
-        });
-        blocks.push(...fileBlocks);
+            allBlocks: fileBlocks,
+        };
+    }), 15);
+
+    const files = [];
+    const blocks = [];
+    for (const parsedFile of parsedFiles) {
+        const { allBlocks, ...file } = parsedFile;
+        files.push(file);
+        blocks.push(...allBlocks);
     }
 
     const clusters = files

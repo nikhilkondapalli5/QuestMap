@@ -356,12 +356,17 @@ export const RepoOverview = ({ mapData }) => {
                 onClick={() => setIsOpen(!isOpen)}
                 className="flex w-full items-start justify-between gap-3 text-left outline-none"
             >
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                     <p className="text-[10px] font-black uppercase tracking-widest text-blue-300">Repository Overview</p>
                     <h3 className="mt-1 truncate text-sm font-bold text-white flex items-center gap-1.5">
                         {summary.project_type || mapData?.topic || 'GitHub repository'}
                         <ChevronDown className={`w-3.5 h-3.5 text-blue-300 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
                     </h3>
+                    {!isOpen && summary.plain_english && (
+                        <p className="mt-2 text-xs leading-relaxed text-gray-400 truncate">
+                            {summary.plain_english}
+                        </p>
+                    )}
                 </div>
                 <span className={`flex-shrink-0 rounded-full border px-2 py-1 text-[10px] font-black uppercase ${CONFIDENCE_STYLES[confidence] || CONFIDENCE_STYLES.medium}`}>
                     {confidence}
@@ -425,9 +430,6 @@ const LearningPathMap = ({ mapData, selectedNode, onNodeSelect }) => {
                         <Target className="w-3.5 h-3.5 text-purple-400" />
                         Learning Path
                     </h2>
-                    <span className="text-[11px] font-semibold text-gray-400">
-                        {completedNodes}/{totalNodes} completed
-                    </span>
                 </div>
                 <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
                     <motion.div

@@ -315,62 +315,72 @@ async function storeRepoCodeBlockEmbeddings(blocks = []) {
     if (!blocks.length) return 0;
     if (!pineconeIndex) await initRAG();
 
-    const limit = 15;
     const vectors = [];
-    
-    const tasks = blocks.map(block => async () => {
-        if (!block.vectorId) return;
-        try {
-            const embeddingText = [
-                block.summary || (block.snippet ? block.snippet.slice(0, 1000) : ''),
-                block.symbolName,
-                block.filePath,
-                block.language,
-                block.blockType,
-            ].filter(Boolean).join('\n');
-            const embedding = await generateEmbedding(embeddingText);
-            vectors.push({
-                id: block.vectorId,
-                values: embedding,
-                metadata: {
-                    userId: block.userId,
-                    repoFullName: block.repoFullName,
-                    commitSha: block.commitSha,
-                    blockId: String(block._id || block.blockId || ''),
-                    fileId: String(block.fileId || ''),
-                    filePath: block.filePath,
-                    startLine: Number(block.startLine || 1),
-                    endLine: Number(block.endLine || 1),
-                    symbolName: block.symbolName || 'module',
-                    language: block.language || 'text',
-                    blockType: block.blockType || 'block',
-                    summary: block.summary,
-                    timestamp: new Date().toISOString(),
-                },
-            });
-        } catch (err) {
-            console.warn(`Failed to embed repo code block ${block.symbolName || block.filePath}:`, err.message);
-        }
-    });
+    const chunkSize = 100;
 
-    const executing = new Set();
-    for (const task of tasks) {
-        const p = Promise.resolve().then(() => task());
-        executing.add(p);
-        const clean = () => executing.delete(p);
-        p.then(clean, clean);
-        if (executing.size >= limit) {
-            await Promise.race(executing);
+    for (let i = 0; i < blocks.length; i += chunkSize) {
+        const batchBlocks = blocks.slice(i, i + chunkSize).filter(b => b.vectorId);
+        if (batchBlocks.length === 0) continue;
+
+        try {
+            console.log(`[RAG Service] Batch embedding ${batchBlocks.length} code blocks (offset ${i})...`);
+            const requests = batchBlocks.map(block => {
+                const embeddingText = [
+                    block.summary || (block.snippet ? block.snippet.slice(0, 1000) : ''),
+                    block.symbolName,
+                    block.filePath,
+                    block.language,
+                    block.blockType,
+                ].filter(Boolean).join('\n');
+                return {
+                    content: { parts: [{ text: embeddingText }] },
+                    model: 'models/gemini-embedding-001',
+                };
+            });
+
+            const result = await embeddingModel.batchEmbedContents({ requests });
+
+            if (result?.embeddings) {
+                result.embeddings.forEach((emb, idx) => {
+                    const block = batchBlocks[idx];
+                    if (emb?.values) {
+                        vectors.push({
+                            id: block.vectorId,
+                            values: emb.values,
+                            metadata: {
+                                userId: block.userId,
+                                repoFullName: block.repoFullName,
+                                commitSha: block.commitSha,
+                                blockId: String(block._id || block.blockId || ''),
+                                fileId: String(block.fileId || ''),
+                                filePath: block.filePath,
+                                startLine: Number(block.startLine || 1),
+                                endLine: Number(block.endLine || 1),
+                                symbolName: block.symbolName || 'module',
+                                language: block.language || 'text',
+                                blockType: block.blockType || 'block',
+                                summary: block.summary,
+                                timestamp: new Date().toISOString(),
+                            },
+                        });
+                    }
+                });
+            }
+        } catch (err) {
+            console.warn(`[RAG Service] Batch embedding request failed for chunk starting at index ${i}:`, err.message);
         }
     }
-    await Promise.all(executing);
 
-    for (let i = 0; i < vectors.length; i += 100) {
-        await pineconeIndex.namespace('repo_code').upsert({ records: vectors.slice(i, i + 100) });
+    if (vectors.length > 0) {
+        console.log(`[RAG Service] Upserting ${vectors.length} vectors to Pinecone namespace "repo_code"...`);
+        for (let i = 0; i < vectors.length; i += 100) {
+            await pineconeIndex.namespace('repo_code').upsert({ records: vectors.slice(i, i + 100) });
+        }
     }
 
     return vectors.length;
 }
+
 
 async function retrieveRepoCodeMatches({ userId, repoFullName, commitSha, query, topK = 3, minScore = 0.6 }) {
     if (!query) return [];

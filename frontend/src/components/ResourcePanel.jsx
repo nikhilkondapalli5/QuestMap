@@ -778,7 +778,7 @@ const CodeBlockWithHighlights = ({ code, startLine = 1, highlightStart, highligh
     );
 };
 
-const MarkdownText = ({ text }) => {
+export const MarkdownText = ({ text }) => {
     if (!text) return null;
     const lines = text.split('\n');
     return (
@@ -863,8 +863,22 @@ const MarkdownText = ({ text }) => {
     );
 };
 
-export const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, isMaximized, onToggleMaximize }) => {
+export const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, isMaximized, onToggleMaximize, showInnerMaximizer = true }) => {
     if (!selectedNode?.repoConcept) return null;
+
+    const ingestionStatus = selectedNode?.code_ingestion?.status || selectedNode?.codeIngestion?.status;
+    if (ingestionStatus === 'processing') {
+        return (
+            <div className="flex flex-col items-center justify-center p-12 text-center h-full min-h-[300px] space-y-4 select-none">
+                <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                <h3 className="text-sm font-bold uppercase tracking-wider text-blue-400">Analyzing Repository Code</h3>
+                <p className="text-xs text-gray-400 max-w-xs leading-relaxed">
+                    We are parsing, embedding, and linking repository code blocks to your learning path in the background. This will refresh automatically.
+                </p>
+            </div>
+        );
+    }
+
     const references = selectedNode?.code_references || [];
     const codeFiles = selectedNode?.code_files || [];
     const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
@@ -1120,7 +1134,6 @@ export const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, isMaximi
         
         // Reset selection and chat states
         setSelectionInfo(null);
-        setExplainData(null);
         setFollowupText('');
     }, [selectedNode?.id, references, codeFiles]);
 
@@ -1276,13 +1289,17 @@ export const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, isMaximi
         const topic = selectedNode?.label || '';
         const surroundingContext = displayCode || '';
 
+        const existingHistory = explainData?.history || [];
+        const newUserMsg = { role: 'user', text: `Please explain this ${sourceLabel}: ${cleanedText}` };
+        const updatedHistory = [...existingHistory, newUserMsg];
+
         const initialExplainData = {
             snippet: cleanedText,
             filePath: activeFilePath,
             language: activeReference?.language || activeCodeFile?.language || 'javascript',
             surroundingContext,
             topic,
-            history: [],
+            history: updatedHistory,
             loading: true,
             error: null,
         };
@@ -1299,7 +1316,10 @@ export const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, isMaximi
                     surroundingContext,
                     topic,
                     skillLevel,
-                    history: [],
+                    history: updatedHistory.map(msg => ({
+                        role: msg.role === 'model' ? 'model' : 'user',
+                        parts: [{ text: msg.text }]
+                    })),
                     allSnippets,
                 }),
             });
@@ -1313,7 +1333,7 @@ export const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, isMaximi
                     ...prev,
                     loading: false,
                     history: [
-                        { role: 'user', text: `Please explain this ${sourceLabel}: ${cleanedText}` },
+                        ...updatedHistory,
                         { role: 'model', text: data.responseText || '' }
                     ],
                 };
@@ -1328,7 +1348,7 @@ export const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, isMaximi
                 };
             });
         }
-    }, [activeFilePath, activeReference, activeCodeFile, displayCode, selectedNode, getSkillLevel, onToggleMaximize]);
+    }, [activeFilePath, activeReference, activeCodeFile, displayCode, selectedNode, getSkillLevel, onToggleMaximize, allSnippets, explainData]);
 
     const handleExplainSnippet = React.useCallback(() => {
         startExplain(activeSnippetText, 'snippet');
@@ -1447,7 +1467,6 @@ export const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, isMaximi
     }, [activeFilePath, activeIndex, showFullFile]);
 
     React.useEffect(() => {
-        setExplainData(null);
         setFollowupText('');
     }, [activeFilePath]);
 
@@ -1552,7 +1571,7 @@ export const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, isMaximi
                                         <Columns className="w-3.5 h-3.5" />
                                     </button>
                                 )}
-                                {onToggleMaximize && (
+                                {showInnerMaximizer && onToggleMaximize && (
                                     <button
                                         type="button"
                                         onClick={(e) => {
@@ -1796,7 +1815,7 @@ export const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, isMaximi
                 )}
 
                 {/* 3. AI Explain Column (on the right!) */}
-                {explainData && (
+                {isMaximized && explainData && (
                     <>
                         {/* Vertical resize handle */}
                         <div
@@ -1937,31 +1956,33 @@ export const CodeEvidencePanel = ({ selectedNode, userId, isLightTheme, isMaximi
                         )}
 
                         {/* Followup chat form */}
-                        <form onSubmit={handleSendFollowup} className="flex gap-2 pt-2 border-t border-gray-800/10 mt-4">
-                            <input
-                                type="text"
-                                value={followupText}
-                                onChange={(e) => setFollowupText(e.target.value)}
-                                disabled={explainData.loading || followupLoading}
-                                placeholder="Ask a follow-up question..."
-                                className={`flex-1 min-w-0 rounded-xl border px-3.5 py-2 text-xs outline-none transition-all disabled:opacity-50 ${
-                                    isLightTheme
-                                        ? 'border-gray-200 bg-gray-50 text-gray-900 placeholder-gray-400 focus:border-emerald-500 focus:bg-white'
-                                        : 'border-gray-700/50 bg-gray-950/40 text-white placeholder-gray-500 focus:border-emerald-500/50 focus:bg-gray-950/70'
-                                }`}
-                            />
-                            <button
-                                type="submit"
-                                disabled={explainData.loading || followupLoading || !followupText.trim()}
-                                className={`rounded-xl border px-3.5 py-2 transition-all disabled:opacity-30 flex items-center justify-center ${
-                                    isLightTheme
-                                        ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
-                                        : 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/30'
-                                }`}
-                            >
-                                <Send className="w-3.5 h-3.5" />
-                            </button>
-                        </form>
+                        {isMaximized && (
+                            <form onSubmit={handleSendFollowup} className="flex gap-2 pt-2 border-t border-gray-800/10 mt-4">
+                                <input
+                                    type="text"
+                                    value={followupText}
+                                    onChange={(e) => setFollowupText(e.target.value)}
+                                    disabled={explainData.loading || followupLoading}
+                                    placeholder="Ask a follow-up question..."
+                                    className={`flex-1 min-w-0 rounded-xl border px-3.5 py-2 text-xs outline-none transition-all disabled:opacity-50 ${
+                                        isLightTheme
+                                            ? 'border-gray-200 bg-gray-55 text-gray-900 placeholder-gray-400 focus:border-emerald-500 focus:bg-white'
+                                            : 'border-gray-700/50 bg-gray-950/40 text-white placeholder-gray-500 focus:border-emerald-500/50 focus:bg-gray-950/70'
+                                    }`}
+                                />
+                                <button
+                                    type="submit"
+                                    disabled={explainData.loading || followupLoading || !followupText.trim()}
+                                    className={`rounded-xl border px-3.5 py-2 transition-all disabled:opacity-30 flex items-center justify-center ${
+                                        isLightTheme
+                                            ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
+                                            : 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/30'
+                                    }`}
+                                >
+                                    <Send className="w-3.5 h-3.5" />
+                                </button>
+                            </form>
+                        )}
                     </div>
                     </>
                 )}
@@ -1974,8 +1995,8 @@ const ResourcePanel = ({ resourceData, loading, selectedNode, userId, isLightThe
     const isRepo = selectedNode?.repoConcept;
     const tabs = isRepo
         ? [
-            { id: 'articles', label: 'Articles', icon: BookOpen },
             { id: 'youtube', label: 'YouTube', icon: Youtube },
+            { id: 'articles', label: 'Articles', icon: BookOpen },
           ]
         : [
             { id: 'youtube', label: 'YouTube', icon: Youtube },
@@ -1984,11 +2005,11 @@ const ResourcePanel = ({ resourceData, loading, selectedNode, userId, isLightThe
             { id: 'code', label: 'Code', icon: Code },
           ];
 
-    const [activeResourceTab, setActiveResourceTab] = React.useState(isRepo ? 'articles' : 'youtube');
+    const [activeResourceTab, setActiveResourceTab] = React.useState('youtube');
 
     React.useEffect(() => {
         if (selectedNode) {
-            setActiveResourceTab(selectedNode.repoConcept ? 'articles' : 'youtube');
+            setActiveResourceTab('youtube');
         }
     }, [selectedNode?.id, selectedNode?.repoConcept]);
 
@@ -2054,7 +2075,7 @@ const ResourcePanel = ({ resourceData, loading, selectedNode, userId, isLightThe
                     )}
                 </div>
 
-                <div className={`grid ${isRepo ? 'grid-cols-3' : 'grid-cols-4'} gap-2 rounded-2xl border border-gray-700/40 bg-gray-900/40 p-1.5 resource-subtabs`}>
+                <div className={`grid ${isRepo ? 'grid-cols-2' : 'grid-cols-4'} gap-2 rounded-2xl border border-gray-700/40 bg-gray-900/40 p-1.5 resource-subtabs`}>
                     {tabs.map(tab => {
                         const Icon = tab.icon;
                         const isActive = activeResourceTab === tab.id;
