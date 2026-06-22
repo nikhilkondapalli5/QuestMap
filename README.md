@@ -2,8 +2,7 @@
 
 QuestMap is an educational platform that transforms source documents and code repositories into interactive, personalized learning journeys. By leveraging **Retrieval-Augmented Generation (RAG)**, QuestMap grounds its AI tutor in your specific source materials to align the learning path, practice quizzes, and recommended resources with your curriculum or codebase.
 
-![QuestMap Dashboard](/Users/konda/.gemini/antigravity/brain/2bb2f111-a840-4d23-83e3-c9dd39749c41/final_dashboard_personalization_1772973507895.png)
-*(Note: Visual asset paths are configured locally; update to relative or hosting URLs for remote deployment)*
+![QuestMap Dashboard](./Dashboard.png)
 
 ## 🚀 Key Features
 
@@ -133,8 +132,10 @@ The pipeline identifies and filters out bibliographies, citations, and metadata 
 
 ## 📺 Demo Snapshots
 
-| Feature | Visual Evidence |
+| Feature / Tab | Visual Evidence |
 | :--- | :--- |
-| **Interactive Map** | ![Dashboard Map](/Users/konda/.gemini/antigravity/brain/2bb2f111-a840-4d23-83e3-c9dd39749c41/final_dashboard_personalization_1772973507895.png) |
-| **Practice Grounding** | ![Practice Panels](/Users/konda/.gemini/antigravity/brain/2bb2f111-a840-4d23-83e3-c9dd39749c41/dashboard_practice_content_1772941954570.png) |
-| **RAG Ingestion** | ![File Upload](/Users/konda/.gemini/antigravity/brain/2bb2f111-a840-4d23-83e3-c9dd39749c41/rag_categorized_upload_test_1772973077268.webp) |
+| **Personalized Quest Dashboard** | ![Dashboard Map](./Dashboard.png) |
+| **GitHub Repository Analysis View** | ![GitHub Repository Analysis](./GitHub%20Repo%20analyze%20window.png) |
+| **AI Explain & Chat Panel** | ![Explain and Chat](./Explain%20mode.png) |
+| **YouTube Resources Discovery Tab** | ![YouTube Tab](./YT.png) |
+| **Articles & Documentation Curation Tab** | ![Article Tab](./Article.png) |
