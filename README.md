@@ -12,6 +12,9 @@ Visualize your learning journey. QuestMap processes your goals, background, and 
 ### 💻 GitHub Repository Code Explorer
 Analyze code repositories. QuestMap parses your codebase, generates abstract syntax tree (AST) code chunks, indexes them semantically in Pinecone, and maps files to conceptual learning nodes. Users can explore a custom, interactive IDE-like flat file tree, highlight matching line ranges, navigate snippets with previous/next buttons, and resize the code editor window dynamically.
 
+### 📺 Contextual Resource Curation for Code
+QuestMap automatically curates external learning resources—such as relevant YouTube video walkthroughs and technical articles—that map directly to the active code snippets or repository concept nodes you are currently exploring.
+
 ### 📚 Strict RAG Grounding
 QuestMap uses Retrieval-Augmented Generation (RAG) to ground practice questions and recommendations in the concepts found in your uploaded PDFs, notes, and code.
 
