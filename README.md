@@ -21,9 +21,6 @@ QuestMap applies a semantic threshold filter and exclusions for virtual environm
 ### ⚡ Parallelized Learning Flow & API Optimization
 Our backend processes RAG retrieval, practice generation, and resource curation in parallel to optimize response times. YouTube recommendations are capped to at most 2 videos per channel to avoid repetitive listings.
 
-### 🎯 Smart Filtering
-The pipeline identifies and filters out bibliographies, citations, and metadata during document chunking to focus the context on educational content.
-
 ---
 
 ## 🛠️ Tech Stack
@@ -45,11 +42,16 @@ The pipeline identifies and filters out bibliographies, citations, and metadata 
 
 ## 🏗️ Architecture: The RAG & Code Ingestion Pipeline
 
-1.  **Ingestion & Parsing**: PDFs/DOCX/TXT files are parsed and cleaned. Codebases are parsed dynamically, excluding virtual environments.
-2.  **AST Semantic Chunking**: Code files are syntactically chunked into functions, classes, and handlers using the Python `tree-sitter` service.
-3.  **Vector Embedding**: Chunks and snippets are converted into 768-dimensional vectors using the `gemini-embedding-001` model.
-4.  **Query-Expanded Retrieval**: Concept terms undergo Gemini-driven query expansion. Pinecone matches search vectors using a strict **0.6 similarity filter** to retrieve relevant code blocks.
-5.  **Interactive Code Tree & Viewer**: Results are displayed in a borderless IDE-like file tree. Clickable keywords bar filters matches dynamically. Double-click loads full files (auto-loaded for multi-snippet files) with line scroll-centering.
+### 📄 Document Ingestion
+1. **Ingestion & Parsing**: Uploaded PDF, DOCX, and TXT files are extracted, cleaned, and split into paragraph-based text chunks.
+2. **Text Embeddings**: Chunks are mapped to 768-dimensional vectors using `gemini-embedding-001` and indexed under the default namespace in Pinecone.
+
+### 💻 Repository & Codebase Learning Architecture
+1. **Directory Tree Traversal**: The repository analyzer scans the directory recursively, filtering out configuration metadata and virtual directories (e.g., `.git`, `node_modules`, `.venv`, `dist`, `build`) to compile a clean, flat-file tree structure.
+2. **Syntax-Aware AST Chunking**: Code files are sent to the Python microservice, which utilizes `tree-sitter` parsers. The service breaks source files down along strict AST syntactic boundaries (functions, classes, methods, handlers) instead of raw line numbers, keeping scope and decorators intact.
+3. **Semantic Vector Mapping**: Extracted AST chunks are embedded via `gemini-embedding-001` and stored in a repository-specific Pinecone namespace.
+4. **Query Expansion & Linking**: Concept terms in the learning path undergo Gemini-driven expansion. The system queries Pinecone using a similarity filter (`0.6` cosine threshold) to map conceptual nodes on the map directly to matching file ranges and functions in the repo.
+5. **Interactive Repository Explorer**: The client React interface renders the codebase flat-file tree dynamically, highlight ranges in an integrated editor with line scroll-centering, maps interactive search keywords, provides controls for code explanation chats with context continuation, and supports resizable workspace panels.
 
 ---
 
@@ -132,10 +134,8 @@ The pipeline identifies and filters out bibliographies, citations, and metadata 
 
 ## 📺 Demo Snapshots
 
-| Feature / Tab | Visual Evidence |
-| :--- | :--- |
-| **Personalized Quest Dashboard** | ![Dashboard Map](./Dashboard.png) |
 | **GitHub Repository Analysis View** | ![GitHub Repository Analysis](./GitHub%20Repo%20analyze%20window.png) |
+| **Personalized Quest Dashboard** | ![Dashboard Map](./Dashboard.png) |
 | **AI Explain & Chat Panel** | ![Explain and Chat](./Explain%20mode.png) |
 | **YouTube Resources Discovery Tab** | ![YouTube Tab](./YT.png) |
 | **Articles & Documentation Curation Tab** | ![Article Tab](./Article.png) |
