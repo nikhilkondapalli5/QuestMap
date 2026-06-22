@@ -21,8 +21,6 @@ QuestMap uses Retrieval-Augmented Generation (RAG) to ground practice questions 
 ### 🛡️ RAG Relevance Guard & Code Threshold
 QuestMap applies a semantic threshold filter and exclusions for virtual environments (`venv`, `.venv`) or configuration files to maintain relevance between document context and the active learning quest.
 
-### ⚡ Parallelized Learning Flow & API Optimization
-Our backend processes RAG retrieval, practice generation, and resource curation in parallel to optimize response times. YouTube recommendations are capped to at most 2 videos per channel to avoid repetitive listings.
 
 ---
 
