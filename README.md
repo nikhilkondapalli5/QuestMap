@@ -39,7 +39,7 @@ The pipeline identifies and filters out bibliographies, citations, and metadata 
 - **Node.js & Express**: API web server layer.
 - **Python AST Service**: FastAPI service utilizing `tree-sitter` for syntactic code chunking.
 - **Pinecone Vector DB**: Vector database for RAG retrieval and semantic code searches.
-- **Google Gemini 1.5 Pro/Flash**: Language models used for generating knowledge maps, query expansions, and grounding.
+- **Google Gemini 2.5 / 2.0 / 1.5 Flash**: Language models used for generating knowledge maps, query expansions, and grounding.
 - **MongoDB Atlas**: Persistent storage for user profiles, files, and quest history.
 
 ---
@@ -48,7 +48,7 @@ The pipeline identifies and filters out bibliographies, citations, and metadata 
 
 1.  **Ingestion & Parsing**: PDFs/DOCX/TXT files are parsed and cleaned. Codebases are parsed dynamically, excluding virtual environments.
 2.  **AST Semantic Chunking**: Code files are syntactically chunked into functions, classes, and handlers using the Python `tree-sitter` service.
-3.  **Vector Embedding**: Chunks and snippets are converted into 3072-dimensional vectors using Gemini Embeddings.
+3.  **Vector Embedding**: Chunks and snippets are converted into 768-dimensional vectors using the `gemini-embedding-001` model.
 4.  **Query-Expanded Retrieval**: Concept terms undergo Gemini-driven query expansion. Pinecone matches search vectors using a strict **0.6 similarity filter** to retrieve relevant code blocks.
 5.  **Interactive Code Tree & Viewer**: Results are displayed in a borderless IDE-like file tree. Clickable keywords bar filters matches dynamically. Double-click loads full files (auto-loaded for multi-snippet files) with line scroll-centering.
 
