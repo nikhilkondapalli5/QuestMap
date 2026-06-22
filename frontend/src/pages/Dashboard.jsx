@@ -819,10 +819,10 @@ const Dashboard = () => {
     }
 
     return (
-        <div className={`h-screen flex flex-col overflow-hidden selection:bg-blue-500/30 font-sans ${isLightTheme ? 'quest-theme-light bg-[#f0f2f5] text-gray-950' : 'bg-[#15171e] text-white'}`}>
+        <div className={`h-[100dvh] md:h-screen flex flex-col overflow-hidden selection:bg-blue-500/30 font-sans ${isLightTheme ? 'quest-theme-light bg-[#f0f2f5] text-gray-950' : 'bg-[#15171e] text-white'}`}>
             {/* Top Bar - Glassmorphism */}
             {!isPanelMaximized && (
-                <header className={`flex-shrink-0 border-b px-8 py-4 backdrop-blur-xl z-50 ${isLightTheme ? 'border-gray-200 bg-[#f8fafc]/80' : 'border-white/5 bg-[#11131a]/60'}`}>
+                <header className={`flex-shrink-0 border-b px-4 md:px-8 py-3 md:py-4 backdrop-blur-xl z-50 ${isLightTheme ? 'border-gray-200 bg-[#f8fafc]/80' : 'border-white/5 bg-[#11131a]/60'}`}>
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-6">
                             <div className="flex items-center gap-3">
@@ -887,7 +887,12 @@ const Dashboard = () => {
             )}
 
             {/* Main Content */}
-            <div className={cn("flex-1 flex overflow-hidden relative", isSidePanelVisible && "max-md:flex-col")}>
+            <div className={cn(
+                "flex-1 min-h-0 overflow-hidden relative",
+                isSidePanelVisible
+                    ? "md:flex max-md:grid max-md:grid-rows-[minmax(0,1fr)_minmax(220px,45%)]"
+                    : "flex"
+            )}>
 
                 {/* Background Decoration */}
                     <div className={cn("absolute inset-0 pointer-events-none", isLightTheme ? "opacity-0" : "opacity-20")}>
@@ -896,16 +901,19 @@ const Dashboard = () => {
                 </div>
 
                 {/* Left: Learning Path Map */}
-                <div className={cn("flex-1 flex flex-col min-w-0 relative z-10", isPanelMaximized && isSidePanelVisible && "hidden")}>
+                <div className={cn(
+                    "flex flex-col min-w-0 min-h-0 relative z-10",
+                    isPanelMaximized && isSidePanelVisible ? "hidden" : "flex-1"
+                )}>
                     {/* Repo Summary Section */}
                     {profile.source_type === 'repo' && mapData && (
-                        <div className="px-4 md:px-8 pt-4 md:pt-6 pb-2 flex-shrink-0">
+                        <div className="px-4 md:px-8 pt-3 md:pt-6 pb-2 flex-shrink-0">
                             <RepoOverview mapData={mapData} />
                         </div>
                     )}
 
                     {/* Map */}
-                    <div className="flex-1 overflow-hidden relative">
+                    <div className="flex-1 min-h-0 overflow-hidden relative">
                         <LearningPathMap
                             mapData={mapData}
                             selectedNode={selectedNode}
@@ -980,15 +988,17 @@ const Dashboard = () => {
                 {isSidePanelVisible && (
                 <div
                     className={cn(
-                        "flex-shrink-0 flex flex-col backdrop-blur-3xl border-l relative z-20 max-md:!w-full",
-                        isPanelMaximized ? "w-full flex-1 border-l-0" : "max-md:w-full max-md:border-l-0 max-md:border-t max-md:max-h-[42vh]",
+                        "flex flex-col min-h-0 min-w-0 backdrop-blur-3xl border-l relative z-30",
+                        isPanelMaximized
+                            ? "w-full flex-1 border-l-0"
+                            : "flex-shrink-0 max-md:!w-full max-md:border-l-0 max-md:border-t",
                         isLightTheme ? "bg-[#f8fafc]/90 border-gray-200 max-md:border-gray-200" : "bg-[#11131a]/85 border-white/5 max-md:border-white/5"
                     )}
                     style={isPanelMaximized ? undefined : { width: panelWidth }}
                 >
                     {/* Tab Selection */}
                     {!isPanelMaximized && (
-                        <div className={cn("flex items-center gap-2 p-2 m-4 rounded-[1.5rem] border", isLightTheme ? "bg-gray-100 border-gray-200" : "bg-white/5 border-white/10")}>
+                        <div className={cn("flex-shrink-0 flex items-center gap-2 p-2 m-2 md:m-4 rounded-[1.5rem] border", isLightTheme ? "bg-gray-100 border-gray-200" : "bg-white/5 border-white/10")}>
                             <div className="flex flex-1 min-w-0">
                             {tabs.map(tab => (
                                 <button
@@ -1028,7 +1038,10 @@ const Dashboard = () => {
 
 
                     {/* Scrollable Content Area */}
-                    <div className={cn("flex-1 overflow-y-auto px-8 pb-8 custom-scrollbar", isPanelMaximized && "pt-6")}>
+                    <div className={cn(
+                        "flex-1 min-h-0 overflow-y-auto overscroll-y-contain touch-pan-y px-4 md:px-8 pb-4 md:pb-8 custom-scrollbar mobile-scroll-y",
+                        isPanelMaximized && "pt-6"
+                    )}>
                         <AnimatePresence mode="wait">
                             {activeTab === 'recommendations' && (
                                 <motion.div key="rec" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>

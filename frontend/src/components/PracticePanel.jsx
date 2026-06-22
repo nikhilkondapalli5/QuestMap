@@ -468,7 +468,7 @@ const PracticePanel = ({ practiceData, loading, selectedNode, masteryContext }) 
     }
 
     return (
-        <div className="space-y-4 overflow-y-auto max-h-[calc(100vh-320px)] pr-1 custom-scrollbar">
+        <div className="space-y-4 pr-1">
             {selectedNode && (
                 <div className="flex items-center gap-2 mb-2">
                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />

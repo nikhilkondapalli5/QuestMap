@@ -11,6 +11,13 @@ body {
     margin: 0;
     min-width: 320px;
     min-height: 100vh;
+    min-height: 100dvh;
+}
+
+/* Reliable touch scrolling inside nested flex/grid layouts on mobile */
+.mobile-scroll-y {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
 }
 
 /* Premium Branding Typography */

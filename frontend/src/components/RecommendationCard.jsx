@@ -105,7 +105,7 @@ const RecommendationList = ({ recommendations }) => {
     }
 
     return (
-        <div className="space-y-3 overflow-y-auto max-h-[calc(100vh-320px)] pr-1 custom-scrollbar">
+        <div className="space-y-3 pr-1">
             {recommendations.map((rec, i) => (
                 <RecommendationCard key={rec.id || i} recommendation={rec} index={i} />
             ))}

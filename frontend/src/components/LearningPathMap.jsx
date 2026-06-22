@@ -442,7 +442,7 @@ const LearningPathMap = ({ mapData, selectedNode, onNodeSelect }) => {
             </div>
 
             {/* Scrollable path */}
-            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain touch-pan-y px-4 py-4 space-y-4 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent mobile-scroll-y">
                 {stages.map((stage, i) => (
                     <StageSection
                         key={i}
