@@ -2,7 +2,7 @@
 
 QuestMap is an educational platform that transforms source documents and code repositories into interactive, personalized learning journeys. By leveraging **Retrieval-Augmented Generation (RAG)**, QuestMap grounds its AI tutor in your specific source materials to align the learning path, practice quizzes, and recommended resources with your curriculum or codebase.
 
-![QuestMap Dashboard](./Dashboard.png)
+![QuestMap Dashboard](./img/Dashboard.png)
 
 ## 🚀 Key Features
 
@@ -137,8 +137,8 @@ Our backend processes RAG retrieval, practice generation, and resource curation 
 
 ## 📺 Demo Snapshots
 
-| **GitHub Repository Analysis View** | ![GitHub Repository Analysis](./GitHub%20Repo%20analyze%20window.png) |
-| **Personalized Quest Dashboard** | ![Dashboard Map](./Dashboard.png) |
-| **AI Explain & Chat Panel** | ![Explain and Chat](./Explain%20mode.png) |
-| **YouTube Resources Discovery Tab** | ![YouTube Tab](./YT.png) |
-| **Articles & Documentation Curation Tab** | ![Article Tab](./Article.png) |
+| **GitHub Repository Analysis View** | ![GitHub Repository Analysis](./img/GitHub%20Repo%20analyze%20window.png) |
+| **Personalized Quest Dashboard** | ![Dashboard Map](./img/Dashboard.png) |
+| **AI Explain & Chat Panel** | ![Explain and Chat](./img/Explain%20mode.png) |
+| **YouTube Resources Discovery Tab** | ![YouTube Tab](./img/YT.png) |
+| **Articles & Documentation Curation Tab** | ![Article Tab](./img/Article.png) |
