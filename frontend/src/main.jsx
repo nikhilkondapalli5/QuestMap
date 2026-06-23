@@ -22,6 +22,12 @@ if (!rootElement) {
     console.error("CRITICAL: #root element not found in HTML!");
 }
 
+// Ensure unique guest ID is set immediately on startup
+if (typeof window !== 'undefined' && window.sessionStorage && !sessionStorage.getItem('questmap_uid')) {
+    const newUid = 'anon_' + Math.random().toString(36).substring(2, 15) + '_' + Date.now();
+    sessionStorage.setItem('questmap_uid', newUid);
+}
+
 try {
     const root = createRoot(rootElement);
     root.render(
