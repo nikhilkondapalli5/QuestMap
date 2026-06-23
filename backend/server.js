@@ -1110,38 +1110,61 @@ async function fetchLinkPreview(redirectUrl) {
  * Uses @google/genai SDK for tracing compatibility.
  */
 async function callGemini(prompt, retries = 2, useSearch = false) {
-    for (let attempt = 0; attempt <= retries; attempt++) {
-        try {
-            const config = {
-                temperature: 0.4,
-                maxOutputTokens: 8192,
-                systemInstruction: 'You MUST respond with valid, complete JSON only. No markdown, no commentary. Ensure all strings are properly terminated and all brackets/braces are closed.',
-            };
-            if (useSearch) {
-                config.tools = [{ googleSearch: {} }];
-            } else {
-                config.responseMimeType = 'application/json';
+    const primaryModel = process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash-lite';
+    const models = [
+        primaryModel,
+        'gemini-2.5-flash',
+        'gemini-2.0-flash',
+        'gemini-1.5-flash'
+    ].filter((value, index, self) => self.indexOf(value) === index);
+
+    let lastError = null;
+
+    for (const model of models) {
+        for (let attempt = 0; attempt <= retries; attempt++) {
+            try {
+                const config = {
+                    temperature: 0.4,
+                    maxOutputTokens: 8192,
+                    systemInstruction: 'You MUST respond with valid, complete JSON only. No markdown, no commentary. Ensure all strings are properly terminated and all brackets/braces are closed.',
+                };
+                if (useSearch) {
+                    config.tools = [{ googleSearch: {} }];
+                } else {
+                    config.responseMimeType = 'application/json';
+                }
+
+                const response = await ai.models.generateContent({
+                    model: model,
+                    contents: prompt,
+                    config,
+                });
+
+                let text = response.text || '';
+                if (useSearch) {
+                    const jsonMatch = text.match(/```(?:json)?\n?([\s\S]*?)```/);
+                    if (jsonMatch) text = jsonMatch[1];
+                }
+
+                return repairJSON(text);
+            } catch (err) {
+                lastError = err;
+                if (err.status === 400 || (err.message && err.message.includes('API key not valid'))) {
+                    break; // Fatal error, move to next model
+                }
+
+                if (attempt === retries) {
+                    console.warn(`[callGemini] Model ${model} failed after all retries. Falling back to next model...`);
+                    break;
+                }
+
+                console.warn(`Gemini API model ${model} attempt ${attempt + 1} failed, retrying...`, err.message);
+                await new Promise(r => setTimeout(r, 1000 * (attempt + 1))); // backoff
             }
-
-            const response = await ai.models.generateContent({
-                model: process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash-lite',
-                contents: prompt,
-                config,
-            });
-
-            let text = response.text || '';
-            if (useSearch) {
-                const jsonMatch = text.match(/```(?:json)?\n?([\s\S]*?)```/);
-                if (jsonMatch) text = jsonMatch[1];
-            }
-
-            return repairJSON(text);
-        } catch (err) {
-            if (attempt === retries) throw err;
-            console.warn(`Gemini API attempt ${attempt + 1} failed, retrying...`, err.message);
-            await new Promise(r => setTimeout(r, 1000 * (attempt + 1))); // backoff
         }
     }
+
+    throw lastError || new Error('callGemini failed on all models.');
 }
 
 /**
