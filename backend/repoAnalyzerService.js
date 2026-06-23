@@ -556,7 +556,7 @@ Rules:
 - Generate concepts from README plus implementation clusters together; do not rely only on README terms when code shows important architecture.
 - When a concept maps to implementation clusters, include those code_cluster evidence ids in code_cluster_ids.
 - High confidence requires at least two evidence_ids.
-- Prefer a smaller coherent path of high-signal concepts over a long list of generic prerequisite subjects.
+- Prefer a smaller coherent path of high-signal concepts (limit to at most 8 concepts) over a long list of generic prerequisite subjects to ensure focus and prevent output truncation.
 - Concept titles must be reusable domain or method topics, not project labels, setup/run tasks, file walkthroughs, broad school subjects, or standalone dependency names.
 - Broad prerequisites are allowed only when necessary for the skill level; include at most one, keep it early, and connect it clearly to later concepts.
 - Preserve important evidence terms in titles or keywords, but promote a term only when the evidence shows conceptual importance.

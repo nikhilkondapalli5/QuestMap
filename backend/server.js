@@ -52,6 +52,7 @@ const SUBSCRIPTION_CACHE_TTL_MS = SUBSCRIPTION_CACHE_TTL_DAYS * 24 * 60 * 60 * 1
 
 // Initialize Gemini API client
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+let currentPrimaryModel = process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash-lite';
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
@@ -1110,9 +1111,8 @@ async function fetchLinkPreview(redirectUrl) {
  * Uses @google/genai SDK for tracing compatibility.
  */
 async function callGemini(prompt, retries = 2, useSearch = false) {
-    const primaryModel = process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash-lite';
     const models = [
-        primaryModel,
+        currentPrimaryModel,
         'gemini-2.5-flash',
         'gemini-2.0-flash',
         'gemini-1.5-flash'
@@ -1122,6 +1122,8 @@ async function callGemini(prompt, retries = 2, useSearch = false) {
 
     for (const model of models) {
         for (let attempt = 0; attempt <= retries; attempt++) {
+            let text = '';
+            let response = null;
             try {
                 const config = {
                     temperature: 0.4,
@@ -1134,23 +1136,40 @@ async function callGemini(prompt, retries = 2, useSearch = false) {
                     config.responseMimeType = 'application/json';
                 }
 
-                const response = await ai.models.generateContent({
+                response = await ai.models.generateContent({
                     model: model,
                     contents: prompt,
                     config,
                 });
 
-                let text = response.text || '';
+                text = response.text || '';
                 if (useSearch) {
                     const jsonMatch = text.match(/```(?:json)?\n?([\s\S]*?)```/);
                     if (jsonMatch) text = jsonMatch[1];
                 }
 
-                return repairJSON(text);
+                const parsed = repairJSON(text);
+
+                // If this model succeeded and is not our current primary model, promote it
+                if (model !== currentPrimaryModel) {
+                    console.log(`[Gemini Model Promotion] Promoting ${model} to primary text model due to successful execution (was ${currentPrimaryModel}).`);
+                    currentPrimaryModel = model;
+                }
+
+                return parsed;
             } catch (err) {
                 lastError = err;
                 if (err.status === 400 || (err.message && err.message.includes('API key not valid'))) {
                     break; // Fatal error, move to next model
+                }
+
+                if (err.message && err.message.includes('Unable to parse or repair JSON')) {
+                    console.warn(`[callGemini] JSON parsing failed on model ${model}. Raw response snippet (first 300 chars): "${text.replace(/\s+/g, ' ').slice(0, 300)}"`);
+                    try {
+                        console.warn(`[callGemini] Full Response Object:`, JSON.stringify(response));
+                    } catch (e) {
+                        console.warn(`[callGemini] Could not stringify response:`, e.message);
+                    }
                 }
 
                 if (attempt === retries) {
@@ -1224,7 +1243,7 @@ Return JSON in this format:
         const sourceIntent = options.sourceIntent || 'Find authoritative learning resources. Prefer official documentation, university pages, standards bodies, reputable technical docs, and high-signal educational articles. Return mostly broad beginner-to-intermediate topic resources; include at most one or two highly specific research or specialist articles when they are clearly useful.';
         console.log(`[SearchArticles] Query: "${query}"`);
         const response = await ai.models.generateContent({
-            model: process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash-lite',
+            model: currentPrimaryModel,
             contents: `Perform Google search for '${query}'. ${sourceIntent}${broadKeywordGuidance}${specialistKeywordGuidance}${prefsString}`,
             config: {
                 temperature: 0.2,
@@ -2544,9 +2563,8 @@ async function callGeminiText(contents, systemInstruction) {
         config.systemInstruction = systemInstruction;
     }
 
-    const primaryModel = process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash-lite';
     const models = [
-        primaryModel,
+        currentPrimaryModel,
         'gemini-2.5-flash',
         'gemini-2.0-flash',
         'gemini-1.5-flash'
@@ -2567,6 +2585,13 @@ async function callGeminiText(contents, systemInstruction) {
                     contents: contents,
                     config,
                 });
+
+                // If this model succeeded and is not our current primary model, promote it
+                if (model !== currentPrimaryModel) {
+                    console.log(`[Gemini Model Promotion] Promoting ${model} to primary text model due to successful execution (was ${currentPrimaryModel}).`);
+                    currentPrimaryModel = model;
+                }
+
                 return response.text || '';
             } catch (err) {
                 lastError = err;
