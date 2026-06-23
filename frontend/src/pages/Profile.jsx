@@ -82,6 +82,10 @@ const Profile = () => {
     const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
 
     useEffect(() => {
+        if (!sessionStorage.getItem('questmap_uid')) {
+            const newUid = 'anon_' + Math.random().toString(36).substring(2, 15) + '_' + Date.now();
+            sessionStorage.setItem('questmap_uid', newUid);
+        }
         setSearchHistory(getStoredSearchHistory());
     }, []);
 
