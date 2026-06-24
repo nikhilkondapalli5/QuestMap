@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Compass, Lightbulb, BookOpen, Youtube, LogOut, Clock, Brain, RefreshCw, Moon, Sun, GitBranch, Code, Maximize2, Minimize2, FileText, X, PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { Compass, Lightbulb, BookOpen, Youtube, LogOut, Clock, Brain, RefreshCw, Moon, Sun, GitBranch, Code, Maximize2, Minimize2, FileText, X, PanelRightClose, PanelRightOpen, Menu } from 'lucide-react';
 import RecommendationList from '../components/RecommendationCard';
 import PracticePanel from '../components/PracticePanel';
 import ResourcePanel, { CodeEvidencePanel, MarkdownText } from '../components/ResourcePanel';
@@ -867,6 +867,21 @@ const Dashboard = () => {
                                 </span>
                             </button>
 
+                            <button
+                                type="button"
+                                onClick={() => setIsSidePanelVisible(prev => !prev)}
+                                className={cn(
+                                    "p-2 rounded-xl border transition-colors flex items-center justify-center",
+                                    isLightTheme
+                                        ? "bg-gray-100 border-gray-200 hover:bg-gray-200 text-gray-500 hover:text-gray-900"
+                                        : "bg-white/5 border-white/10 hover:bg-white/10 text-gray-400 hover:text-white"
+                                )}
+                                title={isSidePanelVisible ? "Hide learning panel" : "Show learning panel"}
+                                aria-label="Toggle learning panel"
+                            >
+                                <Menu className="w-4.5 h-4.5" />
+                            </button>
+
                             <button onClick={handleNewTopic} className={cn("px-4 py-2 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all", isLightTheme ? "bg-gray-100 border-gray-200 hover:bg-gray-200 text-gray-600 hover:text-gray-950" : "bg-white/5 border-white/10 hover:bg-white/10 text-white/60 hover:text-white")}>
                                 Change Mesh
                             </button>
@@ -897,8 +912,8 @@ const Dashboard = () => {
                     "flex flex-col min-w-0 min-h-0 relative z-10",
                     isPanelMaximized && isSidePanelVisible ? "hidden" : "flex-1"
                 )}>
-                    {/* Repo Summary Section */}
-                    {profile.source_type === 'repo' && mapData && (
+                    {/* Repo/Topic Summary Section */}
+                    {mapData && (mapData.repo_summary || mapData.topic_summary) && (
                         <div className="px-4 md:px-8 pt-3 md:pt-6 pb-2 flex-shrink-0">
                             <RepoOverview mapData={mapData} />
                         </div>
@@ -934,60 +949,70 @@ const Dashboard = () => {
                     {/* Selected Node Status Bar removed per user request */}
                 </div>
 
-                {isSidePanelVisible && !isPanelMaximized && (
-                    <div
-                        role="separator"
-                        aria-orientation="vertical"
-                        aria-valuemin={MIN_PANEL_WIDTH}
-                        aria-valuemax={MAX_PANEL_WIDTH}
-                        aria-valuenow={Math.round(panelWidth)}
-                        onPointerDown={handlePanelResizeStart}
-                        className={cn(
-                            "hidden md:flex w-2 flex-shrink-0 items-center justify-center cursor-col-resize relative z-30 group",
-                            isLightTheme ? "bg-transparent" : "bg-transparent"
-                        )}
-                    >
-                        <button
-                            type="button"
-                            onClick={(event) => {
-                                event.stopPropagation();
-                                hideSidePanel();
-                            }}
-                            onPointerDown={(event) => event.stopPropagation()}
-                            title="Hide learning panel"
-                            aria-label="Hide learning panel"
+                <AnimatePresence initial={false}>
+                    {isSidePanelVisible && (
+                        <motion.div
+                            initial={{ width: 0, opacity: 0 }}
+                            animate={{ width: isPanelMaximized ? "100%" : panelWidth, opacity: 1 }}
+                            exit={{ width: 0, opacity: 0 }}
+                            transition={{ duration: 0.3, ease: "easeInOut" }}
                             className={cn(
-                                "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 rounded-full border p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-md",
-                                isLightTheme
-                                    ? "bg-white border-gray-200 text-gray-500 hover:text-gray-900"
-                                    : "bg-[#11131a] border-white/10 text-gray-400 hover:text-white"
+                                "flex min-h-0 min-w-0 relative z-30 max-md:!w-full overflow-hidden",
+                                isPanelMaximized ? "w-full flex-1" : "flex-shrink-0"
                             )}
+                            style={isPanelMaximized ? { width: "100%" } : { width: panelWidth }}
                         >
-                            <PanelRightClose className="w-3.5 h-3.5" />
-                        </button>
-                        <div className={cn(
-                            "h-14 w-1 rounded-full transition-colors",
-                            isResizingPanel
-                                ? "bg-blue-400"
-                                : isLightTheme
-                                    ? "bg-gray-300 group-hover:bg-blue-400"
-                                    : "bg-white/10 group-hover:bg-blue-400"
-                        )} />
-                    </div>
-                )}
+                            {/* Resizer */}
+                            {!isPanelMaximized && (
+                                <div
+                                    role="separator"
+                                    aria-orientation="vertical"
+                                    aria-valuemin={MIN_PANEL_WIDTH}
+                                    aria-valuemax={MAX_PANEL_WIDTH}
+                                    aria-valuenow={Math.round(panelWidth)}
+                                    onPointerDown={handlePanelResizeStart}
+                                    className={cn(
+                                        "hidden md:flex w-2 flex-shrink-0 items-center justify-center cursor-col-resize relative z-40 group",
+                                        isLightTheme ? "bg-transparent" : "bg-transparent"
+                                    )}
+                                >
+                                    <button
+                                        type="button"
+                                        onClick={(event) => {
+                                            event.stopPropagation();
+                                            hideSidePanel();
+                                        }}
+                                        onPointerDown={(event) => event.stopPropagation()}
+                                        title="Hide learning panel"
+                                        aria-label="Hide learning panel"
+                                        className={cn(
+                                            "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-45 rounded-full border p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-md",
+                                            isLightTheme
+                                                ? "bg-white border-gray-200 text-gray-500 hover:text-gray-900"
+                                                : "bg-[#11131a] border-white/10 text-gray-400 hover:text-white"
+                                        )}
+                                    >
+                                        <PanelRightClose className="w-3.5 h-3.5" />
+                                    </button>
+                                    <div className={cn(
+                                        "h-14 w-1 rounded-full transition-colors",
+                                        isResizingPanel
+                                            ? "bg-blue-400"
+                                            : isLightTheme
+                                                ? "bg-gray-300 group-hover:bg-blue-400"
+                                                : "bg-white/10 group-hover:bg-blue-400"
+                                    )} />
+                                </div>
+                            )}
 
-                {/* Right: Data Expansion Panels */}
-                {isSidePanelVisible && (
-                <div
-                    className={cn(
-                        "flex flex-col min-h-0 min-w-0 backdrop-blur-3xl border-l relative z-30",
-                        isPanelMaximized
-                            ? "w-full flex-1 min-h-0 border-l-0"
-                            : "flex-shrink-0 max-md:!w-full max-md:border-l-0 max-md:border-t",
-                        isLightTheme ? "bg-[#f8fafc]/90 border-gray-200 max-md:border-gray-200" : "bg-[#11131a]/85 border-white/5 max-md:border-white/5"
-                    )}
-                    style={isPanelMaximized ? undefined : { width: panelWidth }}
-                >
+                            {/* Sidebar Content Container */}
+                            <div
+                                className={cn(
+                                    "flex flex-col flex-1 min-h-0 min-w-0 backdrop-blur-3xl border-l relative max-md:!w-full max-md:border-l-0 max-md:border-t",
+                                    isPanelMaximized ? "w-full border-l-0" : "",
+                                    isLightTheme ? "bg-[#f8fafc]/90 border-gray-200 max-md:border-gray-200" : "bg-[#11131a]/85 border-white/5 max-md:border-white/5"
+                                )}
+                            >
                     {/* Mobile minimize bar when panel is maximized */}
                     {isPanelMaximized && (
                         <div className={cn(
@@ -1171,8 +1196,10 @@ const Dashboard = () => {
                             )}
                         </AnimatePresence>
                     </div>
-                </div>
-                )}
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
 
             {/* Readme Modal */}

@@ -1441,10 +1441,11 @@ ${historyContext}
 
 Create a comprehensive, personalized knowledge map for learning "${topic}". Think step-by-step:
 1. Identify the 8-10 core sub-topics needed to master this subject
-2. Determine the logical learning order (prerequisites first)
-3. Assign a Bloom's taxonomy level to each node
-4. Based on the learner's history, mark which topics they may have partially covered
-5. Estimate realistic time investment for each topic
+2. Group the sub-topics into 3-4 dynamic, domain-specific categories or focus areas (e.g., "Language Fundamentals", "State Management", "Model Optimization" - do not use generic names like Foundations, Core, etc.)
+3. Determine the logical learning order (prerequisites first)
+4. Assign a Bloom's taxonomy level to each node
+5. Based on the learner's history, mark which topics they may have partially covered
+6. Estimate realistic time investment for each topic
 
 Node and keyword rules:
 - Node labels should be reusable teachable concept areas, not project-specific tasks, setup chores, codebase exploration, or implementation walkthroughs.
@@ -1456,10 +1457,17 @@ Return valid JSON matching this exact schema:
 {
     "map_title": "Learning Path: ${topic}",
     "total_estimated_hours": 60,
+    "topic_summary": {
+        "topic_name": "A normalized, formally capitalized name of the topic (e.g. 'Artificial Intelligence' for input 'ai')",
+        "project_type": "Domain or Category of the Topic (e.g. Machine Learning, Web Development)",
+        "plain_english": "A definition starting with the exact topic title (e.g. '${topic} is...') describing its meaning, followed by a second sentence detailing what this learning path covers if required.",
+        "confidence": "high | medium | low"
+    },
     "nodes": [
 	        {
 	            "id": "1",
 	            "label": "Topic Name",
+	            "category": "Domain-relevant focus area / stage of learning (e.g. 'Data Preprocessing', 'Neural Network Architectures', 'Model Training')",
 	            "description": "What this covers and why it matters",
 	            "bloom_level": "Remember | Understand | Apply | Analyze | Evaluate | Create",
 	            "difficulty": "beginner | intermediate | advanced",

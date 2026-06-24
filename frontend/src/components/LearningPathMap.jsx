@@ -96,30 +96,61 @@ const getRepoPhaseLabel = (pathOrder, totalNodes) => {
 };
 
 /**
- * Group topic-mode nodes into positional stages (legacy topic paths).
+ * Group topic-mode nodes into stages, dynamically grouping by node.category if available,
+ * or falling back to positional stages if category is missing (legacy topic paths).
  */
 function groupTopicNodesIntoStages(nodes) {
     if (!nodes || nodes.length === 0) return [];
 
-    const stages = [];
-    let currentStage = { label: 'Foundations', nodes: [] };
+    const hasCategories = nodes.some(node => node.category);
 
-    nodes.forEach((node, i) => {
-        currentStage.nodes.push({ ...node, originalIndex: i });
+    if (!hasCategories) {
+        const stages = [];
+        let currentStage = { label: 'Foundations', nodes: [] };
 
-        if (currentStage.nodes.length >= 3 && i < nodes.length - 1) {
+        nodes.forEach((node, i) => {
+            currentStage.nodes.push({ ...node, originalIndex: i });
+
+            if (currentStage.nodes.length >= 3 && i < nodes.length - 1) {
+                stages.push(currentStage);
+                const stageNum = stages.length;
+                const stageLabels = ['Foundations', 'Core Skills', 'Intermediate', 'Advanced', 'Mastery', 'Specialization'];
+                currentStage = { label: stageLabels[stageNum] || `Stage ${stageNum + 1}`, nodes: [] };
+            }
+        });
+
+        if (currentStage.nodes.length > 0) {
             stages.push(currentStage);
-            const stageNum = stages.length;
-            const stageLabels = ['Foundations', 'Core Skills', 'Intermediate', 'Advanced', 'Mastery', 'Specialization'];
-            currentStage = { label: stageLabels[stageNum] || `Stage ${stageNum + 1}`, nodes: [] };
         }
-    });
 
-    if (currentStage.nodes.length > 0) {
-        stages.push(currentStage);
+        return stages;
     }
 
-    return stages;
+    const totalNodes = nodes.length;
+    const categoryGroups = new Map();
+
+    nodes.forEach((node, i) => {
+        const category = node.category || 'Core Concepts';
+        if (!categoryGroups.has(category)) {
+            categoryGroups.set(category, []);
+        }
+        categoryGroups.get(category).push({
+            ...node,
+            originalIndex: i,
+        });
+    });
+
+    return [...categoryGroups.entries()]
+        .map(([category, groupNodes]) => {
+            const minIndex = Math.min(...groupNodes.map(n => n.originalIndex));
+            return {
+                label: category,
+                category,
+                minIndex,
+                nodes: groupNodes,
+            };
+        })
+        .sort((a, b) => a.minIndex - b.minIndex);
 }
 
 function getNodePathOrder(node, nodes) {
@@ -212,19 +243,19 @@ const NodeCard = ({ node, isSelected, onSelect, index }) => {
                     </h4>
                 </div>
 
-                {isRepoNode && (
+                {(isRepoNode || node.confidence) && (
                     <div className="mt-1 flex flex-wrap items-center gap-1">
                         {node.confidence && (
                             <span className={`rounded-full border px-1.5 py-0.5 text-[8px] font-black uppercase tracking-widest ${confidenceStyle}`}>
                                 {node.confidence}
                             </span>
                         )}
-                        {roleLabel && (
+                        {isRepoNode && roleLabel && (
                             <span className="rounded-full border border-white/10 bg-white/5 px-1.5 py-0.5 text-[8px] font-bold text-gray-400">
                                 {roleLabel}
                             </span>
                         )}
-                        {node.codeClusterCount > 0 && (
+                        {isRepoNode && node.codeClusterCount > 0 && (
                             <span className="rounded-full border border-blue-500/20 bg-blue-500/10 px-1.5 py-0.5 text-[8px] font-bold text-blue-300/80">
                                 {node.codeClusterCount} code refs
                             </span>
@@ -234,7 +265,7 @@ const NodeCard = ({ node, isSelected, onSelect, index }) => {
 
                 {/* Expanded details when selected */}
                 <AnimatePresence>
-                    {isSelected && (node.key_concepts || node.why_now) && (
+                    {isSelected && (node.key_concepts || node.why_now || node.description) && (
                         <motion.div
                             initial={{ height: 0, opacity: 0 }}
                             animate={{ height: 'auto', opacity: 1 }}
@@ -244,6 +275,9 @@ const NodeCard = ({ node, isSelected, onSelect, index }) => {
                             <div className="mt-2 pt-2 border-t border-gray-700/30 space-y-2">
                                 {node.why_now && (
                                     <p className="text-[10px] leading-relaxed text-gray-400">{node.why_now}</p>
+                                )}
+                                {node.description && (
+                                    <p className="text-[10px] leading-relaxed text-gray-400">{node.description}</p>
                                 )}
                                 {node.key_concepts && (
                                     <div>
@@ -325,7 +359,7 @@ const StageSection = ({ stage, stageIndex, selectedNode, onNodeSelect, totalStag
                             node={node}
                             isSelected={selectedNode?.id === node.id}
                             onSelect={onNodeSelect}
-                            index={stageIndex * 3 + i}
+                            index={node.originalIndex ?? (stageIndex * 3 + i)}
                         />
                     </div>
                 ))}
@@ -343,11 +377,13 @@ const StageSection = ({ stage, stageIndex, selectedNode, onNodeSelect, totalStag
 
 export const RepoOverview = ({ mapData }) => {
     const [isOpen, setIsOpen] = useState(false);
-    const summary = mapData?.repo_summary;
+    const summary = mapData?.repo_summary || mapData?.topic_summary;
     if (!summary?.plain_english && !summary?.project_type) return null;
 
     const stack = Array.isArray(mapData?.detected_stack) ? mapData.detected_stack.slice(0, 15) : [];
     const confidence = summary?.confidence || 'medium';
+    const isRepo = Boolean(mapData?.repoUrl || mapData?.repoFullName || mapData?.isRepoPath);
+    const labelText = isRepo ? 'Repository Overview' : 'Topic Overview';
 
     return (
         <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4 transition-all duration-300">
@@ -357,9 +393,9 @@ export const RepoOverview = ({ mapData }) => {
                 className="flex w-full items-start justify-between gap-3 text-left outline-none"
             >
                 <div className="min-w-0 flex-1">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-blue-300">Repository Overview</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-blue-300">{labelText}</p>
                     <h3 className="mt-1 truncate text-sm font-bold text-white flex items-center gap-1.5">
-                        {summary.project_type || mapData?.topic || 'GitHub repository'}
+                        {summary.topic_name || summary.project_type || mapData?.topic || (isRepo ? 'GitHub repository' : 'Topic learning path')}
                         <ChevronDown className={`w-3.5 h-3.5 text-blue-300 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
                     </h3>
                     {!isOpen && summary.plain_english && (
