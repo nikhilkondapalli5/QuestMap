@@ -2159,6 +2159,15 @@ const ResourcePanel = ({ resourceData, loading, selectedNode, userId, isLightThe
                     ) : (
                         <ResourceEmptyState icon={BookOpen} label="No articles available for this node yet" />
                     )}
+                    {resourceData.search_suggestion_html && (
+                        <div className="mt-6 pt-4 border-t border-slate-800/60">
+                            <p className="text-[10px] text-slate-500 mb-2 uppercase tracking-wider font-semibold">Search Suggestions</p>
+                            <div 
+                                className="google-suggestions-container rounded-xl p-3 bg-slate-900/50 border border-slate-800/40 backdrop-blur-sm"
+                                dangerouslySetInnerHTML={{ __html: resourceData.search_suggestion_html }}
+                            />
+                        </div>
+                    )}
                     <ResourceLearningTasks tasks={resourceData.learning_tasks || []} activeTab={activeResourceTab} />
                     </>
                 )}

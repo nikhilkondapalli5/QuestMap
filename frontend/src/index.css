@@ -459,3 +459,33 @@ body {
         width: var(--explain-panel-width, 384px) !important;
     }
 }
+
+/* Google search suggestions container styling */
+.google-suggestions-container {
+    font-family: inherit;
+    color: #94a3b8; /* slate-400 */
+    font-size: 13px;
+    line-height: 1.5;
+}
+.google-suggestions-container a {
+    color: #60a5fa !important; /* blue-400 */
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s ease;
+}
+.google-suggestions-container a:hover {
+    color: #93c5fd !important; /* blue-300 */
+    text-decoration: underline;
+}
+/* Light Theme Overrides */
+.quest-theme-light .google-suggestions-container {
+    background-color: rgba(241, 245, 249, 0.6) !important;
+    border-color: rgba(226, 232, 240, 0.8) !important;
+    color: #475569 !important; /* slate-600 */
+}
+.quest-theme-light .google-suggestions-container a {
+    color: #2563eb !important; /* blue-600 */
+}
+.quest-theme-light .google-suggestions-container a:hover {
+    color: #1d4ed8 !important; /* blue-700 */
+}

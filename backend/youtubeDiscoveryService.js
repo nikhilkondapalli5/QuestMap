@@ -83,7 +83,7 @@ async function syncUserChannels(userId, ytAccessToken) {
         try {
             console.log(`[Supabase] Filtering channels using Gemini...`);
             const textModel = genAI.getGenerativeModel({ 
-                model: process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash-lite',
+                model: process.env.GEMINI_TEXT_MODEL || 'gemini-3.5-flash-lite',
                 generationConfig: { responseMimeType: "application/json" }
             });
             

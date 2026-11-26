@@ -52,7 +52,7 @@ const SUBSCRIPTION_CACHE_TTL_MS = SUBSCRIPTION_CACHE_TTL_DAYS * 24 * 60 * 60 * 1
 
 // Initialize Gemini API client
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-let currentPrimaryModel = process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash-lite';
+let currentPrimaryModel = process.env.GEMINI_TEXT_MODEL || 'gemini-3.5-flash-lite';
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
@@ -423,14 +423,14 @@ async function searchYouTubeApiVideos(searchQuery, subscribedChannels = [], disp
                 const statsUrl = new URL('https://www.googleapis.com/youtube/v3/videos');
                 statsUrl.searchParams.set('part', 'contentDetails,statistics');
                 statsUrl.searchParams.set('id', videoIds.join(','));
-                
+
                 const statsHeaders = {};
                 if (ytAccessToken) {
                     statsHeaders['Authorization'] = `Bearer ${ytAccessToken}`;
                 } else {
                     statsUrl.searchParams.set('key', process.env.YOUTUBE_API_KEY);
                 }
-                
+
                 const statsRes = await fetch(statsUrl.toString(), { headers: statsHeaders });
                 if (statsRes.ok) {
                     const statsData = await statsRes.json();
@@ -1113,9 +1113,8 @@ async function fetchLinkPreview(redirectUrl) {
 async function callGemini(prompt, retries = 2, useSearch = false) {
     const models = [
         currentPrimaryModel,
-        'gemini-2.5-flash',
-        'gemini-2.0-flash',
-        'gemini-1.5-flash'
+        'gemini-3.5-flash-lite',
+        'gemini-3.8-flash'
     ].filter((value, index, self) => self.indexOf(value) === index);
 
     let lastError = null;
@@ -1216,7 +1215,7 @@ Related Keywords: ${JSON.stringify(options.keyConcepts || [])}
 Instructions:
 - The query should be optimized for a search engine (like Google) to find high-quality learning resources.
 - Focus on the core meaning of the concept.
-- CRITICAL: Make sure to include any key frameworks, libraries, languages, or tools (e.g., React, FastAPI, PyTorch, Scikit-learn, etc.) mentioned in the concept label or keywords.
+- CRITICAL: Make sure to include any key frameworks, libraries, languages, or tools mentioned in the concept label or keywords.
 - Keep the query concise (usually 4 to 10 words). Avoid long full sentences or conversational queries.
 
 Return JSON in this format:
@@ -1306,10 +1305,11 @@ Return JSON in this format:
             }
         }
 
-        return articles;
+        const searchSuggestionHtml = meta?.searchEntryPoint?.renderedContent || null;
+        return { articles, searchSuggestionHtml };
     } catch (err) {
         console.warn('[SearchArticles] Failed to fetch articles:', err.message);
-        return [];
+        return { articles: [], searchSuggestionHtml: null };
     }
 }
 
@@ -1539,9 +1539,10 @@ ${personalContextStr ? '  - Use Personal Context to identify gaps (e.g. from mis
 
         let mapArticleSources = [];
         try {
-            mapArticleSources = await searchArticles(topic, 'official documentation foundational overview curriculum', userId, {
+            const searchRes = await searchArticles(topic, 'official documentation foundational overview curriculum', userId, {
                 sourceIntent: 'Discover high-authority sources for scoping a learning map. Prefer official documentation, university course pages, standards bodies, textbooks, and reputable encyclopedic overviews. Do not look for random blog posts unless no authoritative source exists.',
             });
+            mapArticleSources = searchRes.articles || [];
             console.log(`[${new Date().toISOString()}] Map source discovery found ${mapArticleSources.length} metadata-only sources.`);
         } catch (sourceErr) {
             console.warn('Map source discovery skipped:', sourceErr.message);
@@ -1870,13 +1871,16 @@ Return JSON in this format:
 
         console.log(`[${new Date().toISOString()}] Node data for: "${node_label}" (1 RAG lookup, parallel practice/resources/search with query: "${dynamicQuery}")`);
 
-        const [rawPracticeJson, resourceJson, articlesList, subscriptionVideos, searchVideos] = await Promise.all([
+        const [rawPracticeJson, resourceJson, searchArticlesResult, subscriptionVideos, searchVideos] = await Promise.all([
             callGemini(practicePrompt),
             callGemini(resourcePrompt), // JSON format, no YouTube videos
             searchArticles(topic, node_label, userId, { keyConcepts: key_concepts, overrideQuery: dynamicQuery }), // Text format, YES Search Grounding
             searchSubscribedLocalVideos(dynamicQuery, userId, 3),
             searchYouTubeApiVideos(dynamicQuery, subscribedChannels, 8, ytAccessToken)
         ]);
+
+        const articlesList = searchArticlesResult.articles || [];
+        const searchSuggestionHtml = searchArticlesResult.searchSuggestionHtml || null;
 
         const grounding = buildGroundingContext({
             topic,
@@ -1936,6 +1940,7 @@ Return JSON in this format:
                 ...resourceJson,
                 source_coverage: grounding.coverage,
                 source_candidates: grounding.sources.map(({ content, ...source }) => source),
+                search_suggestion_html: searchSuggestionHtml,
                 _debug_context,
             }
         });
@@ -2368,8 +2373,8 @@ app.post('/api/repo/analyze', async (req, res) => {
         const hasSourceFiles = isMongoReady() && result.sourceFiles?.length;
         let codeIngestion = {
             status: hasSourceFiles ? 'processing' : (isMongoReady() ? 'skipped' : 'unavailable'),
-            reason: hasSourceFiles 
-                ? 'AST code block chunking & vector embedding in progress...' 
+            reason: hasSourceFiles
+                ? 'AST code block chunking & vector embedding in progress...'
                 : (isMongoReady() ? 'No source files selected for code evidence.' : 'MongoDB is required for repo code evidence storage.'),
         };
 
@@ -2388,11 +2393,11 @@ app.post('/api/repo/analyze', async (req, res) => {
                 defaultBranch: result.repo.defaultBranch,
                 commitSha: result.repo.commitSha,
                 skillLevel,
-	                evidence: {
-	                    scan: result.scan,
-	                    items: result.evidence,
-	                    codeGraph: result.codeGraph,
-	                },
+                evidence: {
+                    scan: result.scan,
+                    items: result.evidence,
+                    codeGraph: result.codeGraph,
+                },
                 analysis: result.analysis,
                 codeIngestion,
                 codeFiles,
@@ -2573,9 +2578,8 @@ async function callGeminiText(contents, systemInstruction) {
 
     const models = [
         currentPrimaryModel,
-        'gemini-2.5-flash',
-        'gemini-2.0-flash',
-        'gemini-1.5-flash'
+        'gemini-3.5-flash-lite',
+        'gemini-3.8-flash'
     ].filter((value, index, self) => self.indexOf(value) === index);
 
     const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -2584,7 +2588,7 @@ async function callGeminiText(contents, systemInstruction) {
     for (const model of models) {
         let attempts = 3;
         let delayMs = 1000;
-        
+
         for (let i = 0; i < attempts; i++) {
             try {
                 console.log(`[Gemini Call] Model: ${model}, Attempt: ${i + 1}/${attempts}`);
@@ -2604,12 +2608,12 @@ async function callGeminiText(contents, systemInstruction) {
             } catch (err) {
                 lastError = err;
                 console.warn(`[Gemini Call] Error on model ${model}, attempt ${i + 1}:`, err.message);
-                
+
                 // If it is a bad request or unauthorized, don't keep retrying this model
                 if (err.status === 400 || (err.message && err.message.includes('API key not valid'))) {
                     break;
                 }
-                
+
                 if (i < attempts - 1) {
                     await delay(delayMs);
                     delayMs *= 2;
@@ -2624,12 +2628,12 @@ async function callGeminiText(contents, systemInstruction) {
 
 app.post('/api/repo/code/explain', async (req, res) => {
     try {
-        const { 
-            selectedSnippet, 
-            filePath, 
-            language, 
-            surroundingContext, 
-            topic, 
+        const {
+            selectedSnippet,
+            filePath,
+            language,
+            surroundingContext,
+            topic,
             skillLevel,
             history = [],
             allSnippets = []
@@ -2641,7 +2645,7 @@ app.post('/api/repo/code/explain', async (req, res) => {
 
         let snippetsContext = '';
         if (Array.isArray(allSnippets) && allSnippets.length > 0) {
-            snippetsContext = `Here are the context of all matched code snippets from this file (${filePath}):\n\n` + 
+            snippetsContext = `Here are the context of all matched code snippets from this file (${filePath}):\n\n` +
                 allSnippets.map((s, idx) => {
                     return `--- Snippet ${idx + 1} (Lines ${s.startLine}-${s.endLine}) ---\n${s.snippet}\n` +
                         (s.summary ? `Summary: ${s.summary}\n` : '') +
